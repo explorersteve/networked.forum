@@ -33,7 +33,6 @@ export default defineNuxtConfig({
     typeCheck: false,
   },
 
-  // Vercel auto-detects the Nitro preset. Prefer that over pinning node-server.
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV !== 'production' },
 })

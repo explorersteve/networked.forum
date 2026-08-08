@@ -59,9 +59,12 @@ pnpm build
 ## Deploy on Vercel
 
 1. Import [explorersteve/networked.forum](https://github.com/explorersteve/networked.forum) in Vercel.
-2. Framework preset should be **Nuxt.js** (auto-detected).
-3. Install command: `pnpm install` · Build command: `pnpm build` · Output: leave default.
-4. Add the environment variables from `.env.example` in the Vercel project settings (Production + Preview).
+2. Framework preset must be **Nuxt.js** (forced via `vercel.json`).
+3. Leave **Output Directory empty** — do not set it to `dist`. Nuxt/Nitro publishes through Vercel's Build Output API (`.vercel/output`), not a static `dist` folder.
+4. Install command: `pnpm install` · Build command: `pnpm build`.
+5. Add the environment variables from `.env.example` in the Vercel project settings (Production + Preview).
+
+If a deploy fails with `No Output Directory named "dist"`, open Project Settings → Build & Development and clear/override Output Directory.
 
 Required for a working production deploy:
 

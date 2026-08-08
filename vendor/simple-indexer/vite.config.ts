@@ -3,14 +3,18 @@ import dts from 'vite-plugin-dts'
 import { resolve } from 'path'
 import { readdirSync } from 'fs'
 
-const exampleEntries = Object.fromEntries(
-  readdirSync('examples')
-    .filter((f) => f.endsWith('.ts') && !f.startsWith('_'))
-    .map((f) => [
-      `examples/${f.replace('.ts', '')}`,
-      resolve(__dirname, `examples/${f}`),
-    ]),
-)
+const buildExamples = process.env.SIMPLE_INDEXER_BUILD_EXAMPLES === '1'
+
+const exampleEntries = buildExamples
+  ? Object.fromEntries(
+      readdirSync('examples')
+        .filter((f) => f.endsWith('.ts') && !f.startsWith('_'))
+        .map((f) => [
+          `examples/${f.replace('.ts', '')}`,
+          resolve(__dirname, `examples/${f}`),
+        ]),
+    )
+  : {}
 
 export default defineConfig({
   build: {
