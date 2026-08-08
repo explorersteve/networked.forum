@@ -33,6 +33,10 @@ export default defineNuxtConfig({
     typeCheck: false,
   },
 
+  nitro: {
+    preset: process.env.VERCEL ? 'vercel' : 'node-cluster',
+  },
+
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NODE_ENV !== 'production' },
 })
