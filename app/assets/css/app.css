@@ -341,9 +341,9 @@ a {
 .post__byline {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: baseline;
-  gap: 0.5rem 1rem;
+  gap: 0.35rem 0.75rem;
   width: min(36rem, 100%);
   font-size: 0.6875rem;
   letter-spacing: 0.04em;
@@ -359,7 +359,8 @@ a {
 }
 
 .post__artwork-credit {
-  margin: 0;
+  display: grid;
+  gap: 0.15rem;
   max-width: 100%;
   font-family: var(--font-reading);
   font-size: 0.875rem;
@@ -368,6 +369,16 @@ a {
   letter-spacing: -0.01em;
   text-align: center;
   overflow-wrap: anywhere;
+}
+
+.post__artwork-title,
+.post__artwork-artist {
+  margin: 0;
+}
+
+.post__artwork-artist {
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .artwork-preview {

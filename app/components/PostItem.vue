@@ -18,13 +18,8 @@ const displayText = computed(() => stripArtworkPathFromText(props.post.text))
 
 const artworkMeta = computed(() => parseArtworkTitle(preview.value?.title))
 
-const artworkCredit = computed(() => {
-  const { title, artist } = artworkMeta.value
-  if (title && artist) {
-    return `${title} by ${artist}`
-  }
-  return title || artist || null
-})
+const artworkTitle = computed(() => artworkMeta.value.title)
+const artworkArtist = computed(() => artworkMeta.value.artist)
 
 const formattedTime = computed(() => {
   try {
@@ -55,12 +50,23 @@ const formattedTime = computed(() => {
         :pending="pending"
       />
 
-      <p
-        v-if="artworkCredit"
+      <div
+        v-if="artworkTitle || artworkArtist"
         class="post__artwork-credit"
       >
-        {{ artworkCredit }}
-      </p>
+        <p
+          v-if="artworkTitle"
+          class="post__artwork-title"
+        >
+          {{ artworkTitle }}
+        </p>
+        <p
+          v-if="artworkArtist"
+          class="post__artwork-artist"
+        >
+          by {{ artworkArtist }}
+        </p>
+      </div>
     </div>
 
     <div class="post__byline">
