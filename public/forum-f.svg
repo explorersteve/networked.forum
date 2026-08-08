@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 124 150" fill="#111111" aria-hidden="true">
+  <!-- Top bar -->
+  <rect x="0" y="0" width="16" height="16"/>
+  <rect x="27" y="0" width="16" height="16"/>
+  <rect x="54" y="0" width="16" height="16"/>
+  <rect x="81" y="0" width="16" height="16"/>
+  <rect x="108" y="0" width="16" height="16"/>
+  <!-- Stem + middle bar -->
+  <rect x="0" y="27" width="16" height="16"/>
+  <rect x="0" y="54" width="16" height="16"/>
+  <rect x="27" y="54" width="16" height="16"/>
+  <rect x="54" y="54" width="16" height="16"/>
+  <!-- Stem -->
+  <rect x="0" y="81" width="16" height="16"/>
+  <rect x="0" y="108" width="16" height="16"/>
+  <rect x="0" y="135" width="16" height="16"/>
+</svg>

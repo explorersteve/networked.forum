@@ -1,0 +1,35 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Node dependencies
+node_modules
+vendor/simple-indexer/node_modules
+vendor/simple-indexer/dist
+vendor/simple-indexer/.env
+vendor/simple-indexer/.git-vendor-source
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+.vscode
+*.pem
+*.key
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+!.env*.example
+
+# Vercel
+.vercel
