@@ -27,6 +27,11 @@
   --ui-line-height: 1.35;
   --ui-color: var(--color);
   --ui-placeholder-color: #9a9a9a;
+  --ui-padding-block: 0.7rem;
+  --ui-padding-inline: 1rem;
+
+  /* Kill shared-layer hover/enter motion on the feed surface. */
+  --speed: 0s;
 
   --spacer-xs: 0.25rem;
   --spacer-sm: 0.5rem;
@@ -78,16 +83,32 @@
   --content-width: 72rem;
 }
 
+html {
+  scroll-behavior: auto;
+}
+
 html,
 body {
   background: var(--background);
   color: var(--color);
   font-family: var(--font-family);
+  overflow-x: clip;
 }
 
 body {
   margin: 0;
   min-block-size: 100dvh;
+}
+
+/* No hover/scroll motion on the main app surface. */
+button,
+a.button,
+.header-button,
+.wallet-button,
+.dialog,
+[class*='dialog'] {
+  transition: none !important;
+  animation: none !important;
 }
 
 a {
@@ -98,6 +119,7 @@ a {
   min-block-size: 100dvh;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .app-main {
@@ -107,6 +129,8 @@ a {
   padding-block: var(--spacer-lg) var(--spacer-xl);
   display: grid;
   gap: var(--spacer-lg);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .app-header {
@@ -123,11 +147,13 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: var(--spacer);
+  min-width: 0;
 }
 
 .app-brand {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   text-decoration: none;
   line-height: 0;
   z-index: 1;
@@ -159,6 +185,10 @@ a {
   pointer-events: none;
 }
 
+.app-header__title-lead {
+  display: inline;
+}
+
 .app-header__title-mark {
   white-space: nowrap;
 }
@@ -166,8 +196,10 @@ a {
 .app-header__actions {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: var(--spacer-sm);
   z-index: 1;
+  min-width: 0;
 }
 
 .header-button,
@@ -178,10 +210,11 @@ a {
   color: #111111 !important;
   box-shadow: none !important;
   box-sizing: border-box;
-  min-inline-size: auto;
-  block-size: 2.25rem;
-  padding: 0 0.75rem;
-  font-size: 0.75rem;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  block-size: auto;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
   line-height: 1;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -189,13 +222,19 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: none !important;
 }
 
-.header-button:hover,
 .header-button:focus-visible,
-.wallet-button:hover,
 .wallet-button:focus-visible {
   background: #f5f5f5 !important;
+}
+
+@media (hover: hover) {
+  .header-button:hover,
+  .wallet-button:hover {
+    background: #f5f5f5 !important;
+  }
 }
 
 .header-button.router-link-active {
@@ -203,13 +242,22 @@ a {
   color: #ffffff !important;
 }
 
+.wallet-button {
+  max-inline-size: 11rem;
+  overflow: hidden;
+}
+
 .wallet-button :is(span, strong, small, .icon) {
   color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .section-label {
   margin: 0;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
@@ -237,6 +285,11 @@ a {
   flex-wrap: wrap;
   gap: var(--spacer-sm);
   align-items: center;
+}
+
+.composer__actions :is(button, a.button, .wallet-button, .primary) {
+  min-block-size: 2.75rem;
+  padding-inline: 1.1rem;
 }
 
 .composer__hint {
@@ -357,10 +410,16 @@ a {
   width: 100%;
   margin-block-end: 0;
   padding-block-end: 0.75rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
+  min-width: 0;
+}
+
+.post__byline > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .post__artwork {
@@ -441,12 +500,139 @@ a {
 }
 
 @media (max-width: 860px) {
+  .app-main {
+    width: min(100% - 1.5rem, var(--content-width));
+    padding-block: var(--spacer-md) var(--spacer-lg);
+    gap: var(--spacer-md);
+  }
+
+  .app-header__inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'brand actions'
+      'title title';
+    align-items: center;
+    gap: 0.65rem 0.75rem;
+    padding-inline: 1rem;
+    padding-block: 0.85rem;
+    min-block-size: 0;
+  }
+
+  .app-brand {
+    grid-area: brand;
+  }
+
+  .app-header__actions {
+    grid-area: actions;
+    justify-self: end;
+    gap: 0.4rem;
+  }
+
+  .app-header__title {
+    grid-area: title;
+    position: static;
+    transform: none;
+    max-inline-size: none;
+    text-align: start;
+    font-size: 0.9375rem;
+    line-height: 1.3;
+  }
+
+  .app-header__title-mark {
+    white-space: normal;
+  }
+
+  .app-brand__f {
+    block-size: 2rem;
+  }
+
+  .header-button,
+  .wallet-button {
+    min-block-size: 2.75rem;
+    padding: 0 0.85rem;
+    font-size: 0.75rem;
+  }
+
+  .wallet-button {
+    max-inline-size: min(9.5rem, 46vw);
+  }
+
   .composer__grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacer-md);
+  }
+
+  .composer__actions {
+    display: grid;
     grid-template-columns: 1fr;
   }
 
+  .composer__actions :is(button, a.button, .wallet-button, .primary) {
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+
+  .composer__text-count {
+    position: static;
+    margin-block-start: 0.25rem;
+  }
+
+  .composer__text textarea {
+    padding-block-end: 0;
+  }
+
   .artwork-preview,
-  .artwork-preview img {
-    max-block-size: calc((100dvh - 3.5rem) / 2 - 5rem);
+  .artwork-preview img,
+  .artwork-preview__empty,
+  .artwork-preview__loading {
+    max-block-size: min(50dvh, 20rem);
+  }
+
+  .artwork-preview__empty,
+  .artwork-preview__loading {
+    min-block-size: 10rem;
+    width: 100%;
+  }
+
+  .post {
+    padding-block: var(--spacer) 0;
+    gap: 0.75rem;
+  }
+
+  .post__artwork {
+    width: 100%;
+  }
+
+  .post__text {
+    max-width: 100%;
+  }
+
+  .post__text p {
+    font-size: 0.9375rem;
+    text-wrap: pretty;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-header__inner {
+    padding-inline: 0.75rem;
+  }
+
+  .app-header__title {
+    font-size: 0.875rem;
+  }
+
+  .app-header__actions {
+    gap: 0.35rem;
+  }
+
+  .header-button,
+  .wallet-button {
+    padding: 0 0.7rem;
+  }
+
+  .wallet-button {
+    max-inline-size: min(8.5rem, 42vw);
   }
 }

@@ -16,7 +16,7 @@
       </NuxtLink>
 
       <h1 class="app-header__title">
-        The Unofficial On-chain Forum for
+        <span class="app-header__title-lead">The Unofficial On-chain Forum for </span>
         <span class="app-header__title-mark">Networked.art</span>
       </h1>
 
