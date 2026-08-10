@@ -262,6 +262,7 @@ a {
 }
 
 .composer__text {
+  position: relative;
   display: grid;
   gap: 0.55rem;
   border: 1px solid #111111;
@@ -287,9 +288,20 @@ a {
 .composer__text textarea {
   border: 0;
   padding: 0;
+  padding-block-end: 1.35rem;
   min-block-size: 6.5rem;
   resize: vertical;
   box-shadow: none;
+}
+
+.composer__text-count {
+  position: absolute;
+  inset-block-end: 0.65rem;
+  inset-inline-start: 0.75rem;
+  margin: 0;
+  pointer-events: none;
+  font-size: var(--font-sm);
+  color: var(--muted);
 }
 
 .composer textarea {

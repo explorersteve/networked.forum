@@ -17,8 +17,12 @@ const emit = defineEmits<{
 
 const runtimeConfig = useRuntimeConfig()
 const wagmiConfig = useConfig()
-const { address, isConnected, chainId } = useAccount()
+const { isConnected, chainId } = useAccount()
 const { indexConfirmedPost } = useForumPosts()
+
+const MAX_CHARS = 6000
+/** Blank line between path and body in the onchain payload (`\n\n`). */
+const PATH_BODY_SEPARATOR = '\n\n'
 
 const artworkUrl = ref('')
 const text = ref('')
@@ -28,17 +32,33 @@ const { preview, pending, error, normalizedUrl } = useArtworkPreview(artworkUrl)
 
 const artworkPath = computed(() => extractNetworkedArtPath(artworkUrl.value))
 
+/** Path length + separator bytes when a slug is present; otherwise 0. */
+const prefixLength = computed(() => {
+  const path = artworkPath.value
+  return path ? path.length + PATH_BODY_SEPARATOR.length : 0
+})
+
+const characterCount = computed(() => prefixLength.value + text.value.length)
+
+const textMaxLength = computed(() =>
+  Math.max(0, MAX_CHARS - prefixLength.value),
+)
+
 /** Path (required) plus optional body — UTF-8 encoded as bytes onchain. */
 const composedText = computed(() => {
   const path = artworkPath.value
   const body = text.value.trim()
   if (path && body) {
-    return `${path}\n\n${body}`
+    return `${path}${PATH_BODY_SEPARATOR}${body}`
   }
   return path || body
 })
 
 watch(artworkPath, async (path) => {
+  const maxBody = Math.max(0, MAX_CHARS - (path ? path.length + PATH_BODY_SEPARATOR.length : 0))
+  if (text.value.length > maxBody) {
+    text.value = text.value.slice(0, maxBody)
+  }
   if (!path) {
     return
   }
@@ -170,7 +190,14 @@ async function onComplete(receipt?: TransactionReceipt) {
               v-model="text"
               placeholder="Write something about the artwork"
               rows="5"
+              :maxlength="textMaxLength"
             />
+            <p
+              class="composer__text-count"
+              aria-live="polite"
+            >
+              {{ characterCount }}/{{ MAX_CHARS }} characters
+            </p>
           </div>
         </FormLabel>
 
@@ -203,7 +230,7 @@ async function onComplete(receipt?: TransactionReceipt) {
                   },
                   lead: {
                     confirm:
-                      'Sepolia only. This writes your post onchain. Choose a slow / low gas fee in your wallet before confirming.',
+                      'This transaction writes your post on-chain and adds it to the feed. Choose slow gas before you submit your transaction.',
                     waiting: 'Waiting for the transaction to confirm…',
                   },
                 }"
@@ -229,18 +256,6 @@ async function onComplete(receipt?: TransactionReceipt) {
             Set
             <code>NUXT_PUBLIC_FORUM_CONTRACT_ADDRESS</code>
             to your OpenVault address to enable posting.
-          </p>
-
-          <p
-            v-else
-            class="composer__hint"
-          >
-            Posts go to {{ targetChain.name }} only. Use a slow / low gas fee when
-            you confirm.
-            <template v-if="isConnected && address">
-              Connected as
-              <EvmAccount :address="address" />
-            </template>
           </p>
         </div>
       </div>
