@@ -141,7 +141,7 @@ async function onComplete(receipt?: TransactionReceipt) {
 
 <template>
   <section class="composer">
-    <p class="section-label">New post</p>
+    <p class="section-label">New Post</p>
 
     <div class="composer__grid">
       <ArtworkPreview

@@ -218,8 +218,6 @@ a {
 .composer {
   display: grid;
   gap: var(--spacer-md);
-  padding-block: var(--spacer-md);
-  border-block: var(--border);
 }
 
 .composer__grid {
