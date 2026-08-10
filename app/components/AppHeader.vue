@@ -15,11 +15,6 @@
         >
       </NuxtLink>
 
-      <h1 class="app-header__title">
-        <span class="app-header__title-lead">The Unofficial On-chain Forum for </span>
-        <span class="app-header__title-mark">Networked.art</span>
-      </h1>
-
       <div class="app-header__actions">
         <NuxtLink
           to="/post"
@@ -46,5 +41,10 @@
         </ClientOnly>
       </div>
     </div>
+
+    <h1 class="app-header__title">
+      <span class="app-header__title-lead">The Unofficial On-chain Forum for </span>
+      <span class="app-header__title-mark">Networked.art</span>
+    </h1>
   </header>
 </template>
