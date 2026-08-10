@@ -1,30 +1,12 @@
 <script setup lang="ts">
 const {
   posts,
-  status,
   ready,
   error,
   configured,
   canLoadMore,
   loadMore,
-} = useForumIndexer()
-
-const statusLabel = computed(() => {
-  if (!status.value) {
-    return null
-  }
-
-  if (status.value.phase === 'backfilling') {
-    const progress = Math.round((status.value.progress || 0) * 100)
-    return `Indexing posts… ${progress}%`
-  }
-
-  if (status.value.phase === 'live') {
-    return null
-  }
-
-  return `Indexer: ${status.value.phase}`
-})
+} = useForumPosts()
 
 useHead({
   title: 'Forum',
@@ -44,7 +26,6 @@ useHead({
       :can-load-more="canLoadMore"
       :ready="ready"
       :configured="configured"
-      :status-label="statusLabel"
       :error="error"
       @load-more="loadMore"
     />

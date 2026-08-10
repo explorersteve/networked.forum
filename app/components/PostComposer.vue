@@ -1,29 +1,34 @@
 <script setup lang="ts">
 import { writeContract } from '@wagmi/core'
 import { useAccount, useConfig } from '@wagmi/vue'
-import type { Hash } from 'viem'
-import { forumAbi, isForumConfigured } from '~/utils/forum'
+import { stringToHex, type Hash, type TransactionReceipt } from 'viem'
+import { mainnet, sepolia } from 'viem/chains'
+import { isForumConfigured, openVaultAbi } from '~/utils/forum'
 import { extractNetworkedArtPath } from '~/utils/networkedArt'
+
+const forumChains = {
+  sepolia,
+  mainnet,
+} as const
 
 const emit = defineEmits<{
   posted: []
-  simulate: [{ url?: string; text?: string }]
 }>()
 
 const runtimeConfig = useRuntimeConfig()
 const wagmiConfig = useConfig()
-const { address, isConnected } = useAccount()
+const { address, isConnected, chainId } = useAccount()
+const { indexConfirmedPost } = useForumPosts()
 
 const artworkUrl = ref('')
 const text = ref('')
-const simulating = ref(false)
 const textAreaRef = ref<HTMLTextAreaElement | null>(null)
 
 const { preview, pending, error, normalizedUrl } = useArtworkPreview(artworkUrl)
 
 const artworkPath = computed(() => extractNetworkedArtPath(artworkUrl.value))
 
-/** Path (required) plus optional body — what gets posted onchain. */
+/** Path (required) plus optional body — UTF-8 encoded as bytes onchain. */
 const composedText = computed(() => {
   const path = artworkPath.value
   const body = text.value.trim()
@@ -50,7 +55,12 @@ const contractAddress = computed(() => {
   return isForumConfigured(value) ? value : null
 })
 
-const chainKey = computed(() => runtimeConfig.public.forum.chain || 'sepolia')
+const chainKey = computed(() => {
+  const configured = runtimeConfig.public.forum.chain
+  return configured === 'mainnet' ? 'mainnet' : 'sepolia'
+})
+
+const targetChain = computed(() => forumChains[chainKey.value])
 
 const canPost = computed(
   () =>
@@ -68,38 +78,44 @@ async function submitPost(): Promise<Hash> {
     throw new Error('Forum contract is not configured')
   }
 
+  const expectedChainId = targetChain.value.id
+  if (chainId.value !== expectedChainId) {
+    throw new Error(
+      `Wrong network. Switch to ${targetChain.value.name} (chain ${expectedChainId}) before posting.`,
+    )
+  }
+
+  const entry = stringToHex(composedText.value)
+
   return await writeContract(wagmiConfig, {
     address: contractAddress.value,
-    abi: forumAbi,
-    functionName: 'post',
-    args: [normalizedUrl.value, composedText.value],
+    abi: openVaultAbi,
+    functionName: 'setEntryPublic',
+    args: [entry],
+    chainId: expectedChainId,
   })
 }
 
-function onComplete() {
+async function onComplete(receipt?: TransactionReceipt) {
+  const titleHint = preview.value?.title
+  const imageUrlHint = preview.value?.image
+
   artworkUrl.value = ''
   text.value = ''
+
+  if (receipt?.transactionHash) {
+    try {
+      await indexConfirmedPost({
+        txHash: receipt.transactionHash,
+        titleHint,
+        imageUrlHint,
+      })
+    } catch (err) {
+      console.error('Failed to index post into Convex', err)
+    }
+  }
+
   emit('posted')
-}
-
-async function simulateTransaction() {
-  if (simulating.value) {
-    return
-  }
-
-  simulating.value = true
-  try {
-    // Brief delay so the control feels like a transaction round-trip.
-    await new Promise((resolve) => setTimeout(resolve, 900))
-    emit('simulate', {
-      url: normalizedUrl.value || undefined,
-      text: composedText.value || undefined,
-    })
-    artworkUrl.value = ''
-    text.value = ''
-  } finally {
-    simulating.value = false
-  }
 }
 </script>
 
@@ -172,7 +188,7 @@ async function simulateTransaction() {
             <template v-else>
               <EvmTransactionFlowDialog
                 v-if="contractAddress"
-                :chain="chainKey"
+                :chain="targetChain.id"
                 :request="submitPost"
                 :text="{
                   title: {
@@ -186,7 +202,8 @@ async function simulateTransaction() {
                     error: 'Retry',
                   },
                   lead: {
-                    confirm: 'This submits an onchain transaction to publish your post.',
+                    confirm:
+                      'Sepolia only. This writes your post onchain. Choose a slow / low gas fee in your wallet before confirming.',
                     waiting: 'Waiting for the transaction to confirm…',
                   },
                 }"
@@ -205,28 +222,25 @@ async function simulateTransaction() {
             </template>
           </ClientOnly>
 
-          <Button
-            v-if="!contractAddress"
-            class="primary"
-            :disabled="simulating"
-            @click="simulateTransaction"
-          >
-            {{ simulating ? 'Simulating…' : 'Simulate post' }}
-          </Button>
-
           <p
             v-if="!contractAddress"
             class="composer__hint"
           >
-            No contract yet — this adds a local demo post so you can check the feed.
+            Set
+            <code>NUXT_PUBLIC_FORUM_CONTRACT_ADDRESS</code>
+            to your OpenVault address to enable posting.
           </p>
 
           <p
-            v-else-if="isConnected && address"
+            v-else
             class="composer__hint"
           >
-            Connected as
-            <EvmAccount :address="address" />
+            Posts go to {{ targetChain.name }} only. Use a slow / low gas fee when
+            you confirm.
+            <template v-if="isConnected && address">
+              Connected as
+              <EvmAccount :address="address" />
+            </template>
           </p>
         </div>
       </div>

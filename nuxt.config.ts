@@ -2,10 +2,23 @@
 export default defineNuxtConfig({
   extends: ['@1001-digital/layers.evm'],
 
+  modules: ['convex-nuxt'],
+
   css: ['~/assets/css/app.css'],
+
+  convex: {
+    url:
+      process.env.NUXT_PUBLIC_CONVEX_URL ||
+      process.env.CONVEX_URL ||
+      'https://oceanic-pelican-229.convex.cloud',
+  },
 
   runtimeConfig: {
     public: {
+      convexUrl:
+        process.env.NUXT_PUBLIC_CONVEX_URL ||
+        process.env.CONVEX_URL ||
+        'https://oceanic-pelican-229.convex.cloud',
       evm: {
         walletConnectProjectId: '',
         chains: {
@@ -22,7 +35,8 @@ export default defineNuxtConfig({
       },
       forum: {
         contractAddress: '',
-        startBlock: '0',
+        vesselAddress: '0x1bbf5064e2238d9C9D993A6Bc15aE86e6f2f57eC',
+        startBlock: '11459856',
         chain: 'sepolia',
       },
     },

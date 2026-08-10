@@ -1,13 +1,5 @@
 <script setup lang="ts">
-const { refresh, simulatePost } = useForumIndexer()
-
 async function onPosted() {
-  await refresh()
-  await navigateTo('/')
-}
-
-async function onSimulate(input: { url?: string; text?: string }) {
-  await simulatePost(input)
   await navigateTo('/')
 }
 
@@ -24,9 +16,6 @@ useHead({
 
 <template>
   <div class="app-main">
-    <PostComposer
-      @posted="onPosted"
-      @simulate="onSimulate"
-    />
+    <PostComposer @posted="onPosted" />
   </div>
 </template>

@@ -5,14 +5,6 @@ const NETWORKED_ORIGIN = `https://${NETWORKED_HOST}`
 const ARTWORK_PATH_RE =
   /^([a-zA-Z0-9_-]+)\/(0x[a-fA-F0-9]{40})\/(\d+)$/
 
-export function isNetworkedArtUrl(value: string): boolean {
-  return normalizeNetworkedArtUrl(value) !== null
-}
-
-/**
- * Pull the required artwork path from a full Networked.art URL or a bare path.
- * Returns null when the value is missing or not `{artist}/{0xcontract}/{tokenId}`.
- */
 export function extractNetworkedArtPath(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -54,57 +46,12 @@ export function buildNetworkedArtUrl(path: string): string | null {
   return `${NETWORKED_ORIGIN}/${artworkPath}`
 }
 
-export function normalizeNetworkedArtUrl(value: string): string | null {
-  return buildNetworkedArtUrl(value)
-}
-
-/**
- * Remove a leading artwork path line from post text for feed display.
- * The path still remains in the onchain `text` payload.
- */
-export function stripArtworkPathFromText(text: string): string {
-  const lines = text.replace(/\r\n/g, '\n').split('\n')
-  const first = lines[0]?.trim() ?? ''
-  if (!extractNetworkedArtPath(first)) {
-    return text.trim()
+export function artistSlugFromPath(path: string): string | null {
+  const artworkPath = extractNetworkedArtPath(path)
+  if (!artworkPath) {
+    return null
   }
-
-  let index = 1
-  while (index < lines.length && !lines[index]?.trim()) {
-    index += 1
-  }
-
-  return lines.slice(index).join('\n').trim()
-}
-
-/**
- * Networked.art OG images are branded 1200x630 cards. The real artwork URL is
- * embedded as a base64 segment after `src_~` inside `/_og/` paths.
- */
-export function unwrapNetworkedOgImage(ogImage: string): string {
-  try {
-    const url = new URL(ogImage)
-    if (!url.hostname.endsWith(NETWORKED_HOST)) {
-      return ogImage
-    }
-
-    const match = url.pathname.match(/src_~([A-Za-z0-9_-]+)/)
-    if (!match?.[1]) {
-      return ogImage
-    }
-
-    const encoded = match[1].replace(/-/g, '+').replace(/_/g, '/')
-    const padded = encoded + '='.repeat((4 - (encoded.length % 4)) % 4)
-    const decoded = globalThis.atob(padded)
-
-    if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
-      return decoded
-    }
-
-    return ogImage
-  } catch {
-    return ogImage
-  }
+  return artworkPath.split('/')[0] ?? null
 }
 
 /**
@@ -128,6 +75,32 @@ export function parseArtworkTitle(ogTitle: string | null | undefined): {
   return {
     title: match[1].trim(),
     artist: match[2].trim(),
+  }
+}
+
+export function unwrapNetworkedOgImage(ogImage: string): string {
+  try {
+    const url = new URL(ogImage)
+    if (!url.hostname.endsWith(NETWORKED_HOST)) {
+      return ogImage
+    }
+
+    const match = url.pathname.match(/src_~([A-Za-z0-9_-]+)/)
+    if (!match?.[1]) {
+      return ogImage
+    }
+
+    const encoded = match[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = encoded + '='.repeat((4 - (encoded.length % 4)) % 4)
+    const decoded = Buffer.from(padded, 'base64').toString('utf8')
+
+    if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+      return decoded
+    }
+
+    return ogImage
+  } catch {
+    return ogImage
   }
 }
 

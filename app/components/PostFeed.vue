@@ -55,23 +55,23 @@ onBeforeUnmount(() => {
       v-else-if="!ready"
       class="feed__status"
     >
-      {{ statusLabel || 'Indexing posts…' }}
+      {{ statusLabel || 'Loading posts…' }}
     </p>
 
     <p
       v-else-if="posts.length === 0 && !configured"
       class="feed__empty"
     >
-      No posts yet. Use Post → Simulate post to preview the reader feed, or set
+      No posts yet. Set
       <code>NUXT_PUBLIC_FORUM_CONTRACT_ADDRESS</code>
-      after deploying.
+      to your OpenVault address, then publish from Post.
     </p>
 
     <p
       v-else-if="posts.length === 0"
       class="feed__empty"
     >
-      No posts yet. Connect a wallet and publish the first one.
+      No posts yet. Connect a wallet and publish from Post.
     </p>
 
     <div

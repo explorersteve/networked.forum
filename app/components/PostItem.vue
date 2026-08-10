@@ -1,25 +1,22 @@
 <script setup lang="ts">
-import { parseArtworkTitle, stripArtworkPathFromText } from '~/utils/networkedArt'
+import { stripArtworkPathFromText } from '~/utils/networkedArt'
+import type { ForumPost } from '~/utils/forum'
 
 const props = defineProps<{
-  post: {
-    id: string
-    author: `0x${string}`
-    url: string
-    text: string
-    timestamp: number
-  }
+  post: ForumPost
 }>()
 
-const { preview, pending } = useArtworkPreview(() => props.post.url)
+const { preview, pending } = useArtworkPreview(() =>
+  props.post.imageUrl ? '' : props.post.url,
+)
 
 /** Path is kept in the tx payload but hidden in the feed. */
 const displayText = computed(() => stripArtworkPathFromText(props.post.text))
 
-const artworkMeta = computed(() => parseArtworkTitle(preview.value?.title))
-
-const artworkTitle = computed(() => artworkMeta.value.title)
-const artworkArtist = computed(() => artworkMeta.value.artist)
+const artworkTitle = computed(() => props.post.title || null)
+const artworkArtist = computed(() => props.post.artist || null)
+const artworkImage = computed(() => props.post.imageUrl || preview.value?.image || null)
+const artworkPending = computed(() => !props.post.imageUrl && pending.value)
 
 const formattedTime = computed(() => {
   try {
@@ -45,9 +42,9 @@ const formattedTime = computed(() => {
     <div class="post__artwork">
       <ArtworkPreview
         :href="post.url"
-        :image="preview?.image"
-        :title="preview?.title"
-        :pending="pending"
+        :image="artworkImage"
+        :title="artworkTitle || preview?.title"
+        :pending="artworkPending"
       />
 
       <div
