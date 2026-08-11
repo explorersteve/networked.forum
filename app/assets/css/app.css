@@ -273,6 +273,18 @@ a {
   gap: var(--spacer);
 }
 
+.composer__url-field {
+  display: grid;
+  gap: var(--spacer-xs);
+  font-size: var(--ui-font-size);
+  line-height: var(--ui-line-height);
+}
+
+.composer__url-field a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 .composer__actions {
   display: flex;
   flex-wrap: wrap;

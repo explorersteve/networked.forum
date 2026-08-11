@@ -152,15 +152,24 @@ async function onComplete(receipt?: TransactionReceipt) {
       />
 
       <div class="composer__fields">
-        <FormLabel label="Networked.art URL">
+        <div class="composer__url-field">
+          <div id="networked-art-url-label">
+            <a
+              href="https://networked.art"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Networked.art</a>
+            URL
+          </div>
           <input
             v-model="artworkUrl"
             type="url"
             placeholder="https://networked.art/…/0x…/1"
             autocomplete="off"
             spellcheck="false"
+            aria-labelledby="networked-art-url-label"
           />
-        </FormLabel>
+        </div>
 
         <p
           v-if="error"
@@ -229,13 +238,22 @@ async function onComplete(receipt?: TransactionReceipt) {
                     error: 'Retry',
                   },
                   lead: {
-                    confirm:
-                      'This transaction writes your post on-chain and adds it to the feed. Choose slow gas before you submit your transaction.',
+                    confirm: '',
                     waiting: 'Waiting for the transaction to confirm…',
                   },
                 }"
                 @complete="onComplete"
               >
+                <template #confirm>
+                  <p>
+                    This transaction writes your post immutably on-chain and
+                    adds it to the feed. You cannot edit it later.
+                  </p>
+                  <p class="post-gas-note">
+                    Choose slow gas before submitting your transaction.
+                  </p>
+                </template>
+
                 <template #start="{ start }">
                   <Button
                     class="primary"
@@ -262,3 +280,10 @@ async function onComplete(receipt?: TransactionReceipt) {
     </div>
   </section>
 </template>
+
+<style scoped>
+.post-gas-note {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+</style>
