@@ -186,14 +186,6 @@ a {
   pointer-events: none;
 }
 
-.app-header__title-lead {
-  display: inline;
-}
-
-.app-header__title-mark {
-  white-space: nowrap;
-}
-
 .app-header__actions {
   display: flex;
   align-items: center;
@@ -537,10 +529,6 @@ a {
     font-size: 0.9375rem;
     line-height: 1.3;
     border-bottom: var(--border);
-  }
-
-  .app-header__title-mark {
-    white-space: normal;
   }
 
   .app-brand__f {

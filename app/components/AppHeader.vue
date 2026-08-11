@@ -43,8 +43,7 @@
     </div>
 
     <h1 class="app-header__title">
-      <span class="app-header__title-lead">The Unofficial On-chain Forum for </span>
-      <span class="app-header__title-mark">Networked.art</span>
+      An On-Chain Art Forum
     </h1>
   </header>
 </template>
