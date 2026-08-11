@@ -8,6 +8,7 @@ import { createForumClient, getForumConfig } from './lib/chain'
 import {
   addressesEqual,
   decodeOpenVaultEntry,
+  openVaultAbi,
   parseForumPayload,
 } from './lib/forum'
 import {
@@ -200,7 +201,10 @@ export const syncFromChain = internalAction({
   ): Promise<{ processed: number; lastBlock: number }> => {
     const config = getForumConfig()
     const client = createForumClient()
-    const maxBlocks = args.maxBlocks ?? 2_000
+    const maxBlocks = Math.max(
+      1,
+      Math.min(args.maxBlocks ?? config.logRange, config.logRange),
+    )
 
     const cursor: number | null = await ctx.runQuery(
       internal.posts.getIndexerCursor,
@@ -225,9 +229,16 @@ export const syncFromChain = internalAction({
       toBlock,
     })
 
+    // The Vessel is shared across many tokens; only OpenVault's token is ours.
+    const vaultTokenNum = await client.readContract({
+      address: config.contractAddress,
+      abi: openVaultAbi,
+      functionName: 'vaultTokenNum',
+    })
+
     let processed = 0
     for (const log of logs) {
-      if (!log.transactionHash) {
+      if (!log.transactionHash || log.args._tokenId !== vaultTokenNum) {
         continue
       }
 

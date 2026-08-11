@@ -24,9 +24,9 @@ export const vesselAbi = parseAbi([
   'function craftToPayload(uint256 _tokenId) view returns (bytes)',
 ])
 
-/** Sepolia / shared Vessel used by OpenVault. */
+/** Mainnet Vessel used by OpenVault. */
 export const DEFAULT_VESSEL_ADDRESS =
-  '0x1bbf5064e2238d9C9D993A6Bc15aE86e6f2f57eC' as const satisfies Address
+  '0xecb92cc7112b80a2234936315bbb493fb48d1463' as const satisfies Address
 
 export type ForumPost = {
   id: string

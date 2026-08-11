@@ -2,7 +2,7 @@ export default defineAppConfig({
   evm: {
     title: 'Forum',
     appLogoUrl: '/icon.svg',
-    defaultChain: 'sepolia',
+    defaultChain: 'mainnet',
     chains: {
       mainnet: {
         id: 1,
