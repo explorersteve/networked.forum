@@ -15,6 +15,8 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
+      siteUrl:
+        process.env.NUXT_PUBLIC_SITE_URL || 'https://www.artforum.fun',
       convexUrl:
         process.env.NUXT_PUBLIC_CONVEX_URL ||
         process.env.CONVEX_URL ||

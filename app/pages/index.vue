@@ -8,14 +8,11 @@ const {
   loadMore,
 } = useForumPosts()
 
-useHead({
+useSeoMeta({
   title: 'Forum',
-  meta: [
-    {
-      name: 'description',
-      content: 'Paste a Networked.art link, write about it, and post onchain.',
-    },
-  ],
+  description: 'An on-chain art forum.',
+  ogTitle: 'Forum',
+  ogDescription: 'An on-chain art forum.',
 })
 </script>
 
