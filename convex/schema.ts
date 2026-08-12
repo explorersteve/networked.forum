@@ -16,6 +16,17 @@ export default defineSchema({
     .index('by_timestamp', ['timestamp'])
     .index('by_txHash', ['txHash']),
 
+  /**
+   * The onchain payload stores a bare `0xcontract/tokenId` path, but
+   * Networked.art 404s without the artist slug. The slug only exists in the
+   * composer, so capture it at submit time — webhook / cron indexing has no
+   * other way to rebuild a working URL.
+   */
+  artworkUrls: defineTable({
+    path: v.string(),
+    url: v.string(),
+  }).index('by_path', ['path']),
+
   indexerState: defineTable({
     key: v.string(),
     lastBlock: v.number(),

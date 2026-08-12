@@ -60,6 +60,19 @@ export function useForumPosts() {
 
   const client = useConvexClient()
 
+  /**
+   * Store the full slug URL before the transaction confirms — the onchain
+   * payload only keeps `0xcontract/tokenId`, and Networked.art 404s without
+   * the slug. Best effort: never block posting on it.
+   */
+  async function rememberArtworkUrl(url: string) {
+    try {
+      await client.mutation(api.posts.rememberArtworkUrl, { url })
+    } catch (err) {
+      console.error('Failed to remember artwork URL', err)
+    }
+  }
+
   async function indexConfirmedPost(input: {
     txHash: Hash
     titleHint?: string | null
@@ -107,5 +120,6 @@ export function useForumPosts() {
     canLoadMore,
     loadMore,
     indexConfirmedPost,
+    rememberArtworkUrl,
   }
 }

@@ -87,6 +87,24 @@ export function artistSlugFromPath(path: string): string | null {
   return parseArtworkInput(path)?.artist ?? null
 }
 
+/** Contract + token behind an artwork URL or path, for onchain lookups. */
+export function parseArtworkRef(
+  value: string,
+): { contract: `0x${string}`; tokenId: bigint } | null {
+  const parsed = parseArtworkInput(value)
+  if (!parsed) {
+    return null
+  }
+  try {
+    return {
+      contract: parsed.contract as `0x${string}`,
+      tokenId: BigInt(parsed.tokenId),
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Networked.art packs title + artist into one string, e.g.
  * "everyone who was there by INFINITEYAY"

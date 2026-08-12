@@ -6,6 +6,11 @@ import {
   mutation,
   query,
 } from './_generated/server'
+import {
+  artistSlugFromPath,
+  buildNetworkedArtUrl,
+  extractNetworkedArtPath,
+} from './lib/networkedArt'
 
 const postReturn = v.object({
   _id: v.id('posts'),
@@ -140,6 +145,59 @@ export const patchMetadata = internalMutation({
       imageUrl: args.imageUrl || existing.imageUrl,
     })
     return existing._id
+  },
+})
+
+/**
+ * Client-facing: remember the full slug URL for an artwork path. Called when a
+ * post is submitted, so indexing can rebuild the URL even if the browser never
+ * reports back (closed tab, failed request, webhook / cron indexing).
+ */
+export const rememberArtworkUrl = mutation({
+  args: {
+    url: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const url = buildNetworkedArtUrl(args.url)
+    const path = url ? extractNetworkedArtPath(url) : null
+    if (!url || !path) {
+      throw new Error('Invalid Networked.art artwork URL')
+    }
+
+    // A bare URL carries no slug, so it would be a useless lookup result.
+    if (!artistSlugFromPath(url)) {
+      return null
+    }
+
+    const existing = await ctx.db
+      .query('artworkUrls')
+      .withIndex('by_path', (q) => q.eq('path', path))
+      .unique()
+
+    if (existing) {
+      if (existing.url !== url) {
+        await ctx.db.patch(existing._id, { url })
+      }
+      return null
+    }
+
+    await ctx.db.insert('artworkUrls', { path, url })
+    return null
+  },
+})
+
+export const getArtworkUrl = internalQuery({
+  args: {
+    path: v.string(),
+  },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('artworkUrls')
+      .withIndex('by_path', (q) => q.eq('path', args.path))
+      .unique()
+    return row?.url ?? null
   },
 })
 

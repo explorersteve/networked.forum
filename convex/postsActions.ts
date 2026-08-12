@@ -1,7 +1,7 @@
 'use node'
 
 import { v } from 'convex/values'
-import { parseAbiItem, type Hex } from 'viem'
+import { parseAbi, parseAbiItem, type Hex } from 'viem'
 import { internal } from './_generated/api'
 import { action, internalAction, type ActionCtx } from './_generated/server'
 import { createForumClient, getForumConfig } from './lib/chain'
@@ -16,6 +16,7 @@ import {
   buildNetworkedArtUrl,
   extractMetaContent,
   extractNetworkedArtPath,
+  parseArtworkRef,
   parseArtworkTitle,
   unwrapNetworkedOgImage,
 } from './lib/networkedArt'
@@ -58,6 +59,76 @@ async function fetchArtworkMetadata(url: string): Promise<{
   }
 }
 
+const erc721MetadataAbi = parseAbi([
+  'function tokenURI(uint256 tokenId) view returns (string)',
+])
+
+const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'
+
+function resolveTokenUri(uri: string): string {
+  if (uri.startsWith('ipfs://')) {
+    return `${IPFS_GATEWAY}${uri.slice('ipfs://'.length).replace(/^ipfs\//, '')}`
+  }
+  return uri
+}
+
+/**
+ * Networked.art is the nicer source (CDN images), but it is reachable only
+ * with the artist slug. The token's own metadata always works, so fall back to
+ * it rather than leaving a post with a blank card.
+ */
+async function fetchOnchainMetadata(url: string): Promise<{
+  title: string
+  imageUrl?: string
+}> {
+  const ref = parseArtworkRef(url)
+  if (!ref) {
+    return { title: '' }
+  }
+
+  try {
+    const client = createForumClient()
+    const tokenUri = await client.readContract({
+      address: ref.contract,
+      abi: erc721MetadataAbi,
+      functionName: 'tokenURI',
+      args: [ref.tokenId],
+    })
+
+    let json: string
+    const dataPrefix = 'data:application/json;base64,'
+    if (tokenUri.startsWith(dataPrefix)) {
+      json = Buffer.from(tokenUri.slice(dataPrefix.length), 'base64').toString(
+        'utf8',
+      )
+    } else if (tokenUri.startsWith('data:application/json,')) {
+      json = decodeURIComponent(
+        tokenUri.slice('data:application/json,'.length),
+      )
+    } else {
+      const response = await fetch(resolveTokenUri(tokenUri), {
+        headers: { Accept: 'application/json' },
+      })
+      if (!response.ok) {
+        return { title: '' }
+      }
+      json = await response.text()
+    }
+
+    const metadata = JSON.parse(json) as { name?: string; image?: string }
+    return {
+      title: typeof metadata.name === 'string' ? metadata.name : '',
+      imageUrl:
+        typeof metadata.image === 'string' && metadata.image
+          ? resolveTokenUri(metadata.image)
+          : undefined,
+    }
+  } catch (error) {
+    console.error('Failed to read onchain token metadata', error)
+    return { title: '' }
+  }
+}
+
 type IndexArgs = {
   txHash: string
   titleHint?: string
@@ -71,9 +142,14 @@ type IndexArgs = {
 function resolvePostUrl(
   parsedPath: string,
   parsedUrl: string,
-  options?: { urlHint?: string; existingUrl?: string },
+  options?: { urlHint?: string; existingUrl?: string; storedUrl?: string },
 ): string {
-  const candidates = [options?.urlHint, options?.existingUrl, parsedUrl]
+  const candidates = [
+    options?.urlHint,
+    options?.existingUrl,
+    options?.storedUrl,
+    parsedUrl,
+  ]
   let best = parsedUrl
 
   for (const candidate of candidates) {
@@ -91,6 +167,18 @@ function resolvePostUrl(
   return best
 }
 
+/**
+ * Dropped transactions used to vanish without a trace, which made a payload
+ * format change impossible to spot until someone reported a missing post.
+ */
+function reject(
+  txHash: string,
+  reason: string,
+): { indexed: false; reason: string } {
+  console.warn(`Skipped transaction ${txHash}: ${reason}`)
+  return { indexed: false, reason }
+}
+
 async function indexTransaction(
   ctx: ActionCtx,
   args: IndexArgs,
@@ -105,23 +193,23 @@ async function indexTransaction(
 
   const tx = await client.getTransaction({ hash: txHash })
   if (!tx?.to || !addressesEqual(tx.to, config.contractAddress)) {
-    return { indexed: false, reason: 'Not an OpenVault transaction' }
+    return reject(txHash, 'Not an OpenVault transaction')
   }
 
   const entry = decodeOpenVaultEntry(tx.input)
   if (!entry) {
-    return { indexed: false, reason: 'Could not decode setEntryPublic' }
+    return reject(txHash, 'Could not decode setEntryPublic')
   }
 
   const parsed = parseForumPayload(entry)
   if (!parsed) {
-    return { indexed: false, reason: 'Not a forum artwork payload' }
+    return reject(txHash, 'Not a forum artwork payload')
   }
 
   const receipt = await client.getTransactionReceipt({ hash: txHash })
   const blockNumber = receipt.blockNumber ?? tx.blockNumber
   if (blockNumber == null) {
-    return { indexed: false, reason: 'Missing block number' }
+    return reject(txHash, 'Missing block number')
   }
 
   const block = await client.getBlock({ blockNumber })
@@ -134,9 +222,13 @@ async function indexTransaction(
     parsed.artistSlug ||
     ''
   const imageUrl = args.imageUrlHint || existing?.imageUrl
+  const storedUrl = await ctx.runQuery(internal.posts.getArtworkUrl, {
+    path: parsed.path,
+  })
   const url = resolvePostUrl(parsed.path, parsed.url, {
     urlHint: args.urlHint,
     existingUrl: existing?.url,
+    storedUrl: storedUrl ?? undefined,
   })
   await ctx.runMutation(internal.posts.upsert, {
     txHash,
@@ -207,15 +299,29 @@ export const enrichMetadata = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     const meta = await fetchArtworkMetadata(args.url)
-    if (!meta.title && !meta.artist && !meta.imageUrl) {
+    const existing = await ctx.runQuery(internal.posts.getByTxInternal, {
+      txHash: args.txHash,
+    })
+
+    let title = meta.title
+    let imageUrl = meta.imageUrl
+    // Only reach onchain for gaps the scrape left open — its IPFS image is a
+    // slower last resort than a Networked.art CDN URL we already have.
+    if (!(title || existing?.title) || !(imageUrl || existing?.imageUrl)) {
+      const onchain = await fetchOnchainMetadata(args.url)
+      title = title || onchain.title
+      imageUrl = imageUrl || onchain.imageUrl
+    }
+
+    if (!title && !meta.artist && !imageUrl) {
       return null
     }
 
     await ctx.runMutation(internal.posts.patchMetadata, {
       txHash: args.txHash,
-      title: meta.title,
+      title,
       artist: meta.artist,
-      imageUrl: meta.imageUrl,
+      imageUrl,
     })
     return null
   },

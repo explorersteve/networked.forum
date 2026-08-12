@@ -25,7 +25,7 @@ const { data: ensName } = useEnsName({
     enabled: computed(() => Boolean(address.value)),
   },
 })
-const { indexConfirmedPost } = useForumPosts()
+const { indexConfirmedPost, rememberArtworkUrl } = useForumPosts()
 
 const MAX_CHARS = 6000
 /** Blank line between path / body / author in the onchain payload (`\n\n`). */
@@ -145,6 +145,10 @@ async function submitPost(): Promise<Hash> {
       `Wrong network. Switch to ${targetChain.value.name} (chain ${expectedChainId}) before posting.`,
     )
   }
+
+  // Capture the slug URL up front — it is gone from the page once the post
+  // clears, and the onchain payload never carries it.
+  await rememberArtworkUrl(normalizedUrl.value)
 
   const entry = stringToHex(composedText.value)
 
