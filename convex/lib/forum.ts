@@ -69,7 +69,9 @@ export function parseForumPayload(entry: Hex | string): {
     return null
   }
 
-  const url = buildNetworkedArtUrl(path)
+  // Build from the original first line so legacy `{artist}/0x…/id` payloads
+  // still produce a full embeddable URL.
+  const url = buildNetworkedArtUrl(firstLine)
   if (!url) {
     return null
   }
@@ -78,6 +80,6 @@ export function parseForumPayload(entry: Hex | string): {
     path,
     url,
     text: normalized.trim(),
-    artistSlug: artistSlugFromPath(path),
+    artistSlug: artistSlugFromPath(firstLine),
   }
 }

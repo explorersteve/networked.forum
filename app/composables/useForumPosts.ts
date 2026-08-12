@@ -65,6 +65,7 @@ export function useForumPosts() {
     titleHint?: string | null
     artistHint?: string | null
     imageUrlHint?: string | null
+    urlHint?: string | null
   }) {
     const parsedHint = parseArtworkTitle(input.titleHint)
     const args = {
@@ -72,6 +73,7 @@ export function useForumPosts() {
       titleHint: parsedHint.title || input.titleHint || undefined,
       artistHint: input.artistHint || parsedHint.artist || undefined,
       imageUrlHint: input.imageUrlHint || undefined,
+      urlHint: input.urlHint || undefined,
     }
 
     let lastError: unknown

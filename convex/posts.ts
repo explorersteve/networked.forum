@@ -185,6 +185,8 @@ export const requestIndex = mutation({
     titleHint: v.optional(v.string()),
     artistHint: v.optional(v.string()),
     imageUrlHint: v.optional(v.string()),
+    /** Full Networked.art URL with artist slug (onchain path omits it). */
+    urlHint: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -197,6 +199,7 @@ export const requestIndex = mutation({
       titleHint: args.titleHint,
       artistHint: args.artistHint,
       imageUrlHint: args.imageUrlHint,
+      urlHint: args.urlHint,
     })
     return null
   },

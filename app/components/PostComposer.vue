@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { writeContract } from '@wagmi/core'
-import { useAccount, useConfig } from '@wagmi/vue'
+import { useAccount, useConfig, useEnsName } from '@wagmi/vue'
 import { stringToHex, type Hash, type TransactionReceipt } from 'viem'
 import { mainnet, sepolia } from 'viem/chains'
 import { isForumConfigured, openVaultAbi } from '~/utils/forum'
@@ -17,12 +17,19 @@ const emit = defineEmits<{
 
 const runtimeConfig = useRuntimeConfig()
 const wagmiConfig = useConfig()
-const { isConnected, chainId } = useAccount()
+const { address, isConnected, chainId } = useAccount()
+const { data: ensName } = useEnsName({
+  address,
+  chainId: mainnet.id,
+  query: {
+    enabled: computed(() => Boolean(address.value)),
+  },
+})
 const { indexConfirmedPost } = useForumPosts()
 
 const MAX_CHARS = 6000
-/** Blank line between path and body in the onchain payload (`\n\n`). */
-const PATH_BODY_SEPARATOR = '\n\n'
+/** Blank line between path / body / author in the onchain payload (`\n\n`). */
+const SECTION_SEPARATOR = '\n\n'
 
 const artworkUrl = ref('')
 const text = ref('')
@@ -32,33 +39,62 @@ const { preview, pending, error, normalizedUrl } = useArtworkPreview(artworkUrl)
 
 const artworkPath = computed(() => extractNetworkedArtPath(artworkUrl.value))
 
+/** ENS when available, otherwise the connected 0x address. */
+const authorSignature = computed(() => {
+  if (ensName.value) {
+    return ensName.value
+  }
+  return address.value ?? null
+})
+
 /** Path length + separator bytes when a slug is present; otherwise 0. */
 const prefixLength = computed(() => {
   const path = artworkPath.value
-  return path ? path.length + PATH_BODY_SEPARATOR.length : 0
+  return path ? path.length + SECTION_SEPARATOR.length : 0
 })
 
-const characterCount = computed(() => prefixLength.value + text.value.length)
+/** Trailing author signature reserved in the onchain payload. */
+const suffixLength = computed(() => {
+  const signature = authorSignature.value
+  return signature ? SECTION_SEPARATOR.length + signature.length : 0
+})
 
+const characterCount = computed(() => text.value.length)
+
+/** Remaining chars available for the body after path / separators / signature. */
 const textMaxLength = computed(() =>
-  Math.max(0, MAX_CHARS - prefixLength.value),
+  Math.max(0, MAX_CHARS - prefixLength.value - suffixLength.value),
 )
 
-/** Path (required) plus optional body — UTF-8 encoded as bytes onchain. */
+/** Path + optional body + author signature — UTF-8 encoded as bytes onchain. */
 const composedText = computed(() => {
   const path = artworkPath.value
   const body = text.value.trim()
-  if (path && body) {
-    return `${path}${PATH_BODY_SEPARATOR}${body}`
+  const signature = authorSignature.value
+  const parts: string[] = []
+
+  if (path) {
+    parts.push(path)
   }
-  return path || body
+  if (body) {
+    parts.push(body)
+  }
+  if (signature) {
+    parts.push(signature)
+  }
+
+  return parts.join(SECTION_SEPARATOR)
 })
 
-watch(artworkPath, async (path) => {
-  const maxBody = Math.max(0, MAX_CHARS - (path ? path.length + PATH_BODY_SEPARATOR.length : 0))
+function clampBodyToBudget() {
+  const maxBody = textMaxLength.value
   if (text.value.length > maxBody) {
     text.value = text.value.slice(0, maxBody)
   }
+}
+
+watch([artworkPath, authorSignature], async ([path]) => {
+  clampBodyToBudget()
   if (!path) {
     return
   }
@@ -89,6 +125,8 @@ const canPost = computed(
         contractAddress.value &&
         normalizedUrl.value &&
         preview.value?.image &&
+        artworkPath.value &&
+        authorSignature.value &&
         composedText.value.length > 0,
     ),
 )
@@ -96,6 +134,9 @@ const canPost = computed(
 async function submitPost(): Promise<Hash> {
   if (!contractAddress.value || !normalizedUrl.value) {
     throw new Error('Forum contract is not configured')
+  }
+  if (!authorSignature.value) {
+    throw new Error('Connect a wallet before posting')
   }
 
   const expectedChainId = targetChain.value.id
@@ -119,6 +160,7 @@ async function submitPost(): Promise<Hash> {
 async function onComplete(receipt?: TransactionReceipt) {
   const titleHint = preview.value?.title
   const imageUrlHint = preview.value?.image
+  const urlHint = normalizedUrl.value
 
   artworkUrl.value = ''
   text.value = ''
@@ -129,6 +171,7 @@ async function onComplete(receipt?: TransactionReceipt) {
         txHash: receipt.transactionHash,
         titleHint,
         imageUrlHint,
+        urlHint,
       })
     } catch (err) {
       console.error('Failed to index post into Convex', err)
@@ -201,12 +244,24 @@ async function onComplete(receipt?: TransactionReceipt) {
               rows="5"
               :maxlength="textMaxLength"
             />
-            <p
-              class="composer__text-count"
-              aria-live="polite"
-            >
-              {{ characterCount }}/{{ MAX_CHARS }} characters
-            </p>
+            <div
+              class="composer__text-rule"
+              role="separator"
+            />
+            <div class="composer__text-footer">
+              <p
+                v-if="authorSignature"
+                class="composer__text-path"
+              >
+                {{ authorSignature }}
+              </p>
+              <p
+                class="composer__text-count"
+                aria-live="polite"
+              >
+                {{ characterCount }}/{{ textMaxLength }}
+              </p>
+            </div>
           </div>
         </FormLabel>
 

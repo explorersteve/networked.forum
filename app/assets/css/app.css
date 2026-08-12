@@ -265,7 +265,7 @@ a {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   gap: var(--spacer-lg);
-  align-items: start;
+  align-items: center;
 }
 
 .composer__fields {
@@ -344,20 +344,32 @@ a {
 .composer__text textarea {
   border: 0;
   padding: 0;
-  padding-block-end: 1.35rem;
   min-block-size: 6.5rem;
   resize: vertical;
   box-shadow: none;
 }
 
+.composer__text-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+
+.composer__text-footer .composer__text-path {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
 .composer__text-count {
-  position: absolute;
-  inset-block-end: 0.65rem;
-  inset-inline-start: 0.75rem;
+  flex: 0 0 auto;
   margin: 0;
   pointer-events: none;
   font-size: var(--font-sm);
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .composer textarea {
@@ -505,6 +517,32 @@ a {
   block-size: 1px;
 }
 
+.about-footer {
+  display: grid;
+  gap: var(--spacer-sm);
+  width: 100%;
+  margin-block-start: var(--spacer);
+  padding-block-start: var(--spacer-lg);
+  border-block-start: var(--border);
+}
+
+.about-footer__body {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.about-footer__body p {
+  margin: 0;
+  font-family: var(--font-reading);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  font-optical-sizing: auto;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  color: var(--color-semi);
+  text-wrap: pretty;
+}
+
 @media (max-width: 860px) {
   .app-main {
     width: min(100% - 1.5rem, var(--content-width));
@@ -572,11 +610,6 @@ a {
   .composer__actions :is(button, a.button, .wallet-button, .primary) {
     inline-size: 100%;
     max-inline-size: none;
-  }
-
-  .composer__text-count {
-    position: static;
-    margin-block-start: 0.25rem;
   }
 
   .composer__text textarea {

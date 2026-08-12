@@ -1,11 +1,19 @@
 const NETWORKED_HOST = 'networked.art'
 const NETWORKED_ORIGIN = `https://${NETWORKED_HOST}`
 
-/** e.g. sheipiter/0x0f650438d8689a2e2e800b31b36b02294e314b0c/2 */
-const ARTWORK_PATH_RE =
+/** URL/path with artist slug: sheipiter/0x…/2 */
+const ARTWORK_PATH_WITH_ARTIST_RE =
   /^([a-zA-Z0-9_-]+)\/(0x[a-fA-F0-9]{40})\/(\d+)$/
+/** Onchain path (no artist): 0x…/2 */
+const ARTWORK_PATH_RE = /^(0x[a-fA-F0-9]{40})\/(\d+)$/
 
-export function extractNetworkedArtPath(value: string): string | null {
+type ParsedArtwork = {
+  artist: string | null
+  contract: string
+  tokenId: string
+}
+
+function parseArtworkInput(value: string): ParsedArtwork | null {
   const trimmed = value.trim()
   if (!trimmed) {
     return null
@@ -27,31 +35,56 @@ export function extractNetworkedArtPath(value: string): string | null {
   }
 
   const path = pathname.replace(/^\/+|\/+$/g, '')
-  const match = path.match(ARTWORK_PATH_RE)
-  const artist = match?.[1]
-  const contract = match?.[2]
-  const tokenId = match?.[3]
-  if (!artist || !contract || !tokenId) {
-    return null
+  const withArtist = path.match(ARTWORK_PATH_WITH_ARTIST_RE)
+  if (withArtist?.[1] && withArtist[2] && withArtist[3]) {
+    return {
+      artist: withArtist[1],
+      contract: withArtist[2].toLowerCase(),
+      tokenId: withArtist[3],
+    }
   }
 
-  return `${artist}/${contract.toLowerCase()}/${tokenId}`
+  const bare = path.match(ARTWORK_PATH_RE)
+  if (bare?.[1] && bare[2]) {
+    return {
+      artist: null,
+      contract: bare[1].toLowerCase(),
+      tokenId: bare[2],
+    }
+  }
+
+  return null
 }
 
-export function buildNetworkedArtUrl(path: string): string | null {
-  const artworkPath = extractNetworkedArtPath(path)
-  if (!artworkPath) {
+/**
+ * Onchain path: `{0xcontract}/{tokenId}` (artist slug omitted).
+ * Accepts a full Networked.art URL, `{artist}/0x…/id`, or bare `0x…/id`.
+ */
+export function extractNetworkedArtPath(value: string): string | null {
+  const parsed = parseArtworkInput(value)
+  if (!parsed) {
     return null
   }
-  return `${NETWORKED_ORIGIN}/${artworkPath}`
+  return `${parsed.contract}/${parsed.tokenId}`
+}
+
+/**
+ * Build an embeddable Networked.art URL. Keeps the artist slug when present
+ * in the input (needed for page fetch / OG preview).
+ */
+export function buildNetworkedArtUrl(path: string): string | null {
+  const parsed = parseArtworkInput(path)
+  if (!parsed) {
+    return null
+  }
+  if (parsed.artist) {
+    return `${NETWORKED_ORIGIN}/${parsed.artist}/${parsed.contract}/${parsed.tokenId}`
+  }
+  return `${NETWORKED_ORIGIN}/${parsed.contract}/${parsed.tokenId}`
 }
 
 export function artistSlugFromPath(path: string): string | null {
-  const artworkPath = extractNetworkedArtPath(path)
-  if (!artworkPath) {
-    return null
-  }
-  return artworkPath.split('/')[0] ?? null
+  return parseArtworkInput(path)?.artist ?? null
 }
 
 /**

@@ -12,7 +12,10 @@ import {
   parseForumPayload,
 } from './lib/forum'
 import {
+  artistSlugFromPath,
+  buildNetworkedArtUrl,
   extractMetaContent,
+  extractNetworkedArtPath,
   parseArtworkTitle,
   unwrapNetworkedOgImage,
 } from './lib/networkedArt'
@@ -60,6 +63,32 @@ type IndexArgs = {
   titleHint?: string
   artistHint?: string
   imageUrlHint?: string
+  /** Full Networked.art URL with artist slug (onchain path omits it). */
+  urlHint?: string
+}
+
+/** Prefer a client urlHint / existing full URL when it matches the onchain contract/token. */
+function resolvePostUrl(
+  parsedPath: string,
+  parsedUrl: string,
+  options?: { urlHint?: string; existingUrl?: string },
+): string {
+  const candidates = [options?.urlHint, options?.existingUrl, parsedUrl]
+  let best = parsedUrl
+
+  for (const candidate of candidates) {
+    const normalized = candidate?.trim() ? buildNetworkedArtUrl(candidate.trim()) : null
+    if (!normalized || extractNetworkedArtPath(normalized) !== parsedPath) {
+      continue
+    }
+    best = normalized
+    // Full artist-slug URLs win over bare contract/token URLs.
+    if (artistSlugFromPath(normalized)) {
+      return normalized
+    }
+  }
+
+  return best
 }
 
 async function indexTransaction(
@@ -105,12 +134,15 @@ async function indexTransaction(
     parsed.artistSlug ||
     ''
   const imageUrl = args.imageUrlHint || existing?.imageUrl
-
+  const url = resolvePostUrl(parsed.path, parsed.url, {
+    urlHint: args.urlHint,
+    existingUrl: existing?.url,
+  })
   await ctx.runMutation(internal.posts.upsert, {
     txHash,
     author: tx.from,
     timestamp,
-    url: parsed.url,
+    url,
     title,
     artist,
     text: parsed.text,
@@ -122,7 +154,7 @@ async function indexTransaction(
   if (needsEnrich) {
     await ctx.scheduler.runAfter(0, internal.postsActions.enrichMetadata, {
       txHash,
-      url: parsed.url,
+      url,
     })
   }
 
@@ -135,6 +167,7 @@ export const indexFromTx = internalAction({
     titleHint: v.optional(v.string()),
     artistHint: v.optional(v.string()),
     imageUrlHint: v.optional(v.string()),
+    urlHint: v.optional(v.string()),
   },
   returns: v.object({
     indexed: v.boolean(),
@@ -152,6 +185,7 @@ export const indexFromTxPublic = action({
     titleHint: v.optional(v.string()),
     artistHint: v.optional(v.string()),
     imageUrlHint: v.optional(v.string()),
+    urlHint: v.optional(v.string()),
   },
   returns: v.object({
     indexed: v.boolean(),
