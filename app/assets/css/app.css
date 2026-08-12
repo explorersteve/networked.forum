@@ -440,6 +440,50 @@ a {
   overflow-wrap: anywhere;
 }
 
+.post__byline-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem 0.75rem;
+  min-width: 0;
+}
+
+.post__permalink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.post__share-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
+  padding: 0.15rem;
+  margin: -0.15rem;
+}
+
+.post__share-x svg {
+  display: block;
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+@media (hover: hover) {
+  .post__permalink:hover,
+  .post__share-x:hover {
+    color: var(--color);
+  }
+}
+
+.post__permalink:focus-visible,
+.post__share-x:focus-visible {
+  color: var(--color);
+  outline: 1px solid var(--color);
+  outline-offset: 2px;
+}
+
 .post__artwork {
   display: grid;
   justify-items: center;

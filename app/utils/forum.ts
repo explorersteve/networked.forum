@@ -41,6 +41,58 @@ export type ForumPost = {
   imageUrl?: string
 }
 
+/** Convex `posts` row fields the feed and permalink pages both map. */
+export type ConvexPostRow = {
+  _id: string
+  txHash: string
+  author: string
+  timestamp: number
+  url: string
+  title: string
+  artist: string
+  text?: string
+  imageUrl?: string
+  blockNumber: number
+}
+
+export function isTxHash(value: string): value is `0x${string}` {
+  return /^0x[a-fA-F0-9]{64}$/.test(value)
+}
+
+export function forumPostPath(txHash: string): string {
+  return `/p/${txHash.toLowerCase()}`
+}
+
+export function forumPostUrl(siteUrl: string, txHash: string): string {
+  return `${siteUrl.replace(/\/$/, '')}${forumPostPath(txHash)}`
+}
+
+/** Prefill an X compose window with writing; the permalink unfurls the artwork. */
+export function xPostIntentUrl(text: string, url: string): string {
+  const body = text.trim()
+  const params = new URLSearchParams()
+  if (body) {
+    params.set('text', body)
+  }
+  params.set('url', url)
+  return `https://x.com/intent/post?${params.toString()}`
+}
+
+export function toForumPost(row: ConvexPostRow): ForumPost {
+  return {
+    id: row._id,
+    author: row.author as Address,
+    url: row.url,
+    text: row.text ?? '',
+    timestamp: row.timestamp,
+    txHash: row.txHash as `0x${string}`,
+    block: String(row.blockNumber),
+    title: row.title,
+    artist: row.artist,
+    imageUrl: row.imageUrl,
+  }
+}
+
 export function isForumConfigured(address: string | undefined): address is Address {
   return Boolean(address && /^0x[a-fA-F0-9]{40}$/.test(address))
 }

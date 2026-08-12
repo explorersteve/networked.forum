@@ -1,6 +1,6 @@
 import type { Hash } from 'viem'
 import { api } from '../../convex/_generated/api'
-import { isForumConfigured, type ForumPost } from '~/utils/forum'
+import { isForumConfigured, toForumPost, type ForumPost } from '~/utils/forum'
 import { parseArtworkTitle } from '~/utils/networkedArt'
 
 const PAGE_SIZE = 12
@@ -28,18 +28,7 @@ export function useForumPosts() {
 
   const posts = computed<ForumPost[]>(() => {
     const rows = data.value ?? []
-    return rows.map((row) => ({
-      id: row._id,
-      author: row.author as `0x${string}`,
-      url: row.url,
-      text: row.text ?? '',
-      timestamp: row.timestamp,
-      txHash: row.txHash as `0x${string}`,
-      block: String(row.blockNumber),
-      title: row.title,
-      artist: row.artist,
-      imageUrl: row.imageUrl,
-    }))
+    return rows.map(toForumPost)
   })
 
   const ready = computed(() => !isPending.value || data.value !== undefined)
