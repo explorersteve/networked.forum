@@ -173,7 +173,7 @@ a {
   top: 50%;
   transform: translate(-50%, -50%);
   margin: 0;
-  max-inline-size: min(40rem, calc(100% - 18rem));
+  max-inline-size: min(40rem, calc(100% - 22rem));
   color: var(--color);
   font-family: var(--font-reading);
   font-size: clamp(1rem, 1.6vw, 1.375rem);
@@ -233,6 +233,17 @@ a {
 .header-button.router-link-active {
   background: #111111 !important;
   color: #ffffff !important;
+}
+
+.header-button--icon {
+  min-inline-size: 2.75rem;
+  padding: 0;
+}
+
+.header-button--icon svg {
+  display: block;
+  width: 1.15rem;
+  height: auto;
 }
 
 .wallet-button {
