@@ -155,6 +155,76 @@ export function unwrapNetworkedOgImage(ogImage: string): string {
   }
 }
 
+const GENERIC_OG_PATHS = new Set([
+  '/og.png',
+  '/og.jpg',
+  '/og.webp',
+  '/logo.svg',
+  '/logo.png',
+])
+
+/** Site-wide Networked.art fallback (the letter-grid logo), not the artwork. */
+export function isGenericNetworkedOgImage(imageUrl: string): boolean {
+  try {
+    const url = new URL(imageUrl)
+    const host = url.hostname.replace(/^www\./, '')
+    if (host !== NETWORKED_HOST) {
+      return false
+    }
+    const path = url.pathname.replace(/\/+$/, '') || '/'
+    return GENERIC_OG_PATHS.has(path.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
+export function isGenericNetworkedTitle(title: string | null | undefined): boolean {
+  if (!title?.trim()) {
+    return true
+  }
+  const normalized = title.trim().toLowerCase()
+  return normalized === 'networked.art' || normalized === 'networked'
+}
+
+/** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
+export function extractArtworkImageFromHtml(html: string): string | null {
+  const cdn = html.match(/https:\/\/cdn\.evm\.now\/tokens\/[a-fA-F0-9]+_md\.webp/i)
+  if (cdn?.[0]) {
+    return cdn[0]
+  }
+  const ipfs = html.match(/https:\/\/ipfs\.networked\.art\/ipfs\/[A-Za-z0-9]+/)
+  if (ipfs?.[0]) {
+    return ipfs[0]
+  }
+  return null
+}
+
+export function resolveArtworkImageFromHtml(html: string): string | null {
+  const ogImage =
+    extractMetaContent(html, 'og:image') ||
+    extractMetaContent(html, 'twitter:image')
+  if (ogImage) {
+    const unwrapped = unwrapNetworkedOgImage(ogImage)
+    if (
+      !isGenericNetworkedOgImage(ogImage) &&
+      !isGenericNetworkedOgImage(unwrapped)
+    ) {
+      return unwrapped
+    }
+  }
+  return extractArtworkImageFromHtml(html)
+}
+
+export function resolveArtworkTitleFromHtml(html: string): string | null {
+  const ogTitle =
+    extractMetaContent(html, 'og:title') ||
+    extractMetaContent(html, 'twitter:title')
+  if (ogTitle && !isGenericNetworkedTitle(ogTitle)) {
+    return ogTitle
+  }
+  return null
+}
+
 export function extractMetaContent(html: string, key: string): string | null {
   const patterns = [
     new RegExp(

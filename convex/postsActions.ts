@@ -14,11 +14,11 @@ import {
 import {
   artistSlugFromPath,
   buildNetworkedArtUrl,
-  extractMetaContent,
   extractNetworkedArtPath,
   parseArtworkRef,
   parseArtworkTitle,
-  unwrapNetworkedOgImage,
+  resolveArtworkImageFromHtml,
+  resolveArtworkTitleFromHtml,
 } from './lib/networkedArt'
 
 const payloadSetEvent = parseAbiItem(
@@ -33,8 +33,9 @@ async function fetchArtworkMetadata(url: string): Promise<{
   try {
     const response = await fetch(url, {
       headers: {
-        Accept: 'text/html',
-        'User-Agent': 'ForumIndexer/1.0',
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
     })
     if (!response.ok) {
@@ -42,16 +43,14 @@ async function fetchArtworkMetadata(url: string): Promise<{
     }
 
     const html = await response.text()
-    const ogTitle =
-      extractMetaContent(html, 'og:title') ||
-      extractMetaContent(html, 'twitter:title')
-    const ogImage = extractMetaContent(html, 'og:image')
+    const ogTitle = resolveArtworkTitleFromHtml(html)
+    const imageUrl = resolveArtworkImageFromHtml(html)
     const parsed = parseArtworkTitle(ogTitle)
 
     return {
       title: parsed.title ?? '',
       artist: parsed.artist ?? '',
-      imageUrl: ogImage ? unwrapNetworkedOgImage(ogImage) : undefined,
+      imageUrl: imageUrl ?? undefined,
     }
   } catch (error) {
     console.error('Failed to fetch artwork metadata', error)
