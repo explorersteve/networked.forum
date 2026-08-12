@@ -2,6 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nuxtjs",
   "installCommand": "pnpm install",
-  "buildCommand": "npx convex deploy --cmd 'pnpm build' --cmd-url-env-var-name NUXT_PUBLIC_CONVEX_URL",
+  "buildCommand": "node scripts/vercel-build.mjs",
   "outputDirectory": null
 }
