@@ -1,13 +1,15 @@
-import { normalizeNetworkedArtUrl } from '~/utils/networkedArt'
+import { normalizeArtworkUrl } from '~/utils/networkedArt'
 
 export type ArtworkPreview = {
   url: string
   title: string | null
   image: string | null
+  width: number | null
+  height: number | null
 }
 
 export function useArtworkPreview(urlSource: MaybeRefOrGetter<string>) {
-  const normalizedUrl = computed(() => normalizeNetworkedArtUrl(toValue(urlSource) || ''))
+  const normalizedUrl = computed(() => normalizeArtworkUrl(toValue(urlSource) || ''))
   const preview = ref<ArtworkPreview | null>(null)
   const pending = ref(false)
   const error = ref<Error | null>(null)

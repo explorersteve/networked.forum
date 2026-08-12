@@ -146,8 +146,8 @@ async function submitPost(): Promise<Hash> {
     )
   }
 
-  // Capture the slug URL up front — it is gone from the page once the post
-  // clears, and the onchain payload never carries it.
+  // Capture the full embed URL up front — it is gone from the page once the
+  // post clears, and the onchain payload only keeps contract/tokenId.
   await rememberArtworkUrl(normalizedUrl.value)
 
   const entry = stringToHex(composedText.value)
@@ -195,26 +195,23 @@ async function onComplete(receipt?: TransactionReceipt) {
         :href="normalizedUrl || '#'"
         :image="preview?.image"
         :title="preview?.title"
+        :width="preview?.width"
+        :height="preview?.height"
         :pending="pending && Boolean(normalizedUrl)"
       />
 
       <div class="composer__fields">
         <div class="composer__url-field">
-          <div id="networked-art-url-label">
-            <a
-              href="https://networked.art"
-              target="_blank"
-              rel="noopener noreferrer"
-            >Networked.art</a>
-            URL
+          <div id="artwork-url-label">
+            Artwork URL
           </div>
           <input
             v-model="artworkUrl"
             type="url"
-            placeholder="https://networked.art/…/0x…/1"
+            placeholder="https://networked.art/…/0x…/1 or https://opensea.io/item/ethereum/0x…/1"
             autocomplete="off"
             spellcheck="false"
-            aria-labelledby="networked-art-url-label"
+            aria-labelledby="artwork-url-label"
           />
         </div>
 

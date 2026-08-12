@@ -50,9 +50,10 @@ export function useForumPosts() {
   const client = useConvexClient()
 
   /**
-   * Store the full slug URL before the transaction confirms — the onchain
-   * payload only keeps `0xcontract/tokenId`, and Networked.art 404s without
-   * the slug. Best effort: never block posting on it.
+   * Store the full embed URL before the transaction confirms — the onchain
+   * payload only keeps `0xcontract/tokenId`. Networked.art 404s without the
+   * slug, and OpenSea links cannot be rebuilt from the path alone. Best
+   * effort: never block posting on it.
    */
   async function rememberArtworkUrl(url: string) {
     try {

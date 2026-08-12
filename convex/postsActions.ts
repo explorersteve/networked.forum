@@ -12,9 +12,11 @@ import {
   parseForumPayload,
 } from './lib/forum'
 import {
-  artistSlugFromPath,
-  buildNetworkedArtUrl,
+  buildOpenSeaMetadataApiUrl,
   extractNetworkedArtPath,
+  isCompleteArtworkUrl,
+  isOpenSeaArtworkUrl,
+  normalizeArtworkUrl,
   parseArtworkRef,
   parseArtworkTitle,
   resolveArtworkImageFromHtml,
@@ -55,6 +57,40 @@ async function fetchArtworkMetadata(url: string): Promise<{
   } catch (error) {
     console.error('Failed to fetch artwork metadata', error)
     return { title: '', artist: '' }
+  }
+}
+
+async function fetchOpenSeaMetadata(url: string): Promise<{
+  title: string
+  imageUrl?: string
+}> {
+  const metadataUrl = buildOpenSeaMetadataApiUrl(url)
+  if (!metadataUrl) {
+    return { title: '' }
+  }
+
+  try {
+    const response = await fetch(metadataUrl, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+      return { title: '' }
+    }
+
+    const metadata = (await response.json()) as {
+      name?: string
+      image?: string
+    }
+    return {
+      title: typeof metadata.name === 'string' ? metadata.name : '',
+      imageUrl:
+        typeof metadata.image === 'string' && metadata.image
+          ? resolveTokenUri(metadata.image)
+          : undefined,
+    }
+  } catch (error) {
+    console.error('Failed to fetch OpenSea metadata', error)
+    return { title: '' }
   }
 }
 
@@ -133,7 +169,7 @@ type IndexArgs = {
   titleHint?: string
   artistHint?: string
   imageUrlHint?: string
-  /** Full Networked.art URL with artist slug (onchain path omits it). */
+  /** Full artwork URL (Networked slug or OpenSea). Onchain path omits it. */
   urlHint?: string
 }
 
@@ -152,13 +188,15 @@ function resolvePostUrl(
   let best = parsedUrl
 
   for (const candidate of candidates) {
-    const normalized = candidate?.trim() ? buildNetworkedArtUrl(candidate.trim()) : null
+    const normalized = candidate?.trim()
+      ? normalizeArtworkUrl(candidate.trim())
+      : null
     if (!normalized || extractNetworkedArtPath(normalized) !== parsedPath) {
       continue
     }
     best = normalized
-    // Full artist-slug URLs win over bare contract/token URLs.
-    if (artistSlugFromPath(normalized)) {
+    // OpenSea item URLs and Networked artist-slug URLs win over bare paths.
+    if (isCompleteArtworkUrl(normalized)) {
       return normalized
     }
   }
@@ -303,23 +341,31 @@ export const enrichMetadata = internalAction({
     })
 
     let title = meta.title
+    let artist = meta.artist
     let imageUrl = meta.imageUrl
-    // Only reach onchain for gaps the scrape left open — its IPFS image is a
-    // slower last resort than a Networked.art CDN URL we already have.
-    if (!(title || existing?.title) || !(imageUrl || existing?.imageUrl)) {
+    if (isOpenSeaArtworkUrl(args.url)) {
+      const onchain = await fetchOnchainMetadata(args.url)
+      title = title || onchain.title
+      imageUrl = onchain.imageUrl || imageUrl
+      if (!title || !imageUrl) {
+        const opensea = await fetchOpenSeaMetadata(args.url)
+        title = title || opensea.title
+        imageUrl = imageUrl || opensea.imageUrl
+      }
+    } else if (!(title || existing?.title) || !(imageUrl || existing?.imageUrl)) {
       const onchain = await fetchOnchainMetadata(args.url)
       title = title || onchain.title
       imageUrl = imageUrl || onchain.imageUrl
     }
 
-    if (!title && !meta.artist && !imageUrl) {
+    if (!title && !artist && !imageUrl) {
       return null
     }
 
     await ctx.runMutation(internal.posts.patchMetadata, {
       txHash: args.txHash,
       title,
-      artist: meta.artist,
+      artist,
       imageUrl,
     })
     return null

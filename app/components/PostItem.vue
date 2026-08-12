@@ -67,6 +67,8 @@ const formattedTime = computed(() => {
         :href="post.url"
         :image="artworkImage"
         :title="artworkTitle || preview?.title"
+        :width="preview?.width"
+        :height="preview?.height"
         :pending="artworkPending"
       />
 

@@ -7,9 +7,9 @@ import {
   query,
 } from './_generated/server'
 import {
-  artistSlugFromPath,
-  buildNetworkedArtUrl,
   extractNetworkedArtPath,
+  isCompleteArtworkUrl,
+  normalizeArtworkUrl,
 } from './lib/networkedArt'
 
 const postReturn = v.object({
@@ -149,9 +149,10 @@ export const patchMetadata = internalMutation({
 })
 
 /**
- * Client-facing: remember the full slug URL for an artwork path. Called when a
- * post is submitted, so indexing can rebuild the URL even if the browser never
- * reports back (closed tab, failed request, webhook / cron indexing).
+ * Client-facing: remember the full artwork URL for an onchain path. Called when
+ * a post is submitted, so indexing can rebuild the embed link even if the
+ * browser never reports back (closed tab, failed request, webhook / cron).
+ * Stores Networked.art URLs with an artist slug, and OpenSea item URLs.
  */
 export const rememberArtworkUrl = mutation({
   args: {
@@ -159,14 +160,14 @@ export const rememberArtworkUrl = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const url = buildNetworkedArtUrl(args.url)
+    const url = normalizeArtworkUrl(args.url)
     const path = url ? extractNetworkedArtPath(url) : null
     if (!url || !path) {
-      throw new Error('Invalid Networked.art artwork URL')
+      throw new Error('Invalid artwork URL')
     }
 
-    // A bare URL carries no slug, so it would be a useless lookup result.
-    if (!artistSlugFromPath(url)) {
+    // A bare Networked path carries no slug, so it would be a useless lookup.
+    if (!isCompleteArtworkUrl(url)) {
       return null
     }
 
@@ -243,7 +244,7 @@ export const requestIndex = mutation({
     titleHint: v.optional(v.string()),
     artistHint: v.optional(v.string()),
     imageUrlHint: v.optional(v.string()),
-    /** Full Networked.art URL with artist slug (onchain path omits it). */
+    /** Full artwork URL (Networked slug or OpenSea). Onchain path omits it. */
     urlHint: v.optional(v.string()),
   },
   returns: v.null(),

@@ -2,7 +2,10 @@ import { createPublicClient, http, parseAbi } from 'viem'
 import { mainnet, sepolia } from 'viem/chains'
 import {
   parseArtworkRef,
-  normalizeNetworkedArtUrl,
+  normalizeArtworkUrl,
+  isOpenSeaArtworkUrl,
+  buildOpenSeaMetadataApiUrl,
+  parseDimensionString,
   resolveArtworkImageFromHtml,
   resolveArtworkTitleFromHtml,
 } from '~/utils/networkedArt'
@@ -11,6 +14,8 @@ type PreviewResult = {
   url: string
   title: string | null
   image: string | null
+  width: number | null
+  height: number | null
 }
 
 const cache = new Map<string, { expiresAt: number; value: PreviewResult }>()
@@ -18,7 +23,7 @@ const CACHE_TTL_MS = 10 * 60_000
 const erc721MetadataAbi = parseAbi([
   'function tokenURI(uint256 tokenId) view returns (string)',
 ])
-const IPFS_GATEWAY = 'https://ipfs.networked.art/ipfs/'
+const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'
 const PREVIEW_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 
@@ -48,10 +53,12 @@ function resolveTokenUri(uri: string): string {
 async function fetchOnchainPreview(url: string): Promise<{
   title: string | null
   image: string | null
+  width: number | null
+  height: number | null
 }> {
   const ref = parseArtworkRef(url)
   if (!ref) {
-    return { title: null, image: null }
+    return { title: null, image: null, width: null, height: null }
   }
 
   const config = useRuntimeConfig()
@@ -87,12 +94,54 @@ async function fetchOnchainPreview(url: string): Promise<{
         signal: AbortSignal.timeout(8_000),
       })
       if (!response.ok) {
-        return { title: null, image: null }
+        return { title: null, image: null, width: null, height: null }
       }
       json = await response.text()
     }
 
-    const metadata = JSON.parse(json) as { name?: string; image?: string }
+    const metadata = JSON.parse(json) as {
+      name?: string
+      image?: string
+      media?: { dimensions?: string }
+    }
+    const dimensions = parseDimensionString(metadata.media?.dimensions)
+    return {
+      title: typeof metadata.name === 'string' ? metadata.name : null,
+      image:
+        typeof metadata.image === 'string' && metadata.image
+          ? resolveTokenUri(metadata.image)
+          : null,
+      width: dimensions?.width ?? null,
+      height: dimensions?.height ?? null,
+    }
+  } catch (error) {
+    console.error('Failed to read onchain token metadata', error)
+    return { title: null, image: null, width: null, height: null }
+  }
+}
+
+async function fetchOpenSeaPreview(url: string): Promise<{
+  title: string | null
+  image: string | null
+}> {
+  const metadataUrl = buildOpenSeaMetadataApiUrl(url)
+  if (!metadataUrl) {
+    return { title: null, image: null }
+  }
+
+  try {
+    const response = await fetch(metadataUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) {
+      return { title: null, image: null }
+    }
+
+    const metadata = (await response.json()) as {
+      name?: string
+      image?: string
+    }
     return {
       title: typeof metadata.name === 'string' ? metadata.name : null,
       image:
@@ -101,7 +150,7 @@ async function fetchOnchainPreview(url: string): Promise<{
           : null,
     }
   } catch (error) {
-    console.error('Failed to read onchain token metadata', error)
+    console.error('Failed to fetch OpenSea metadata', error)
     return { title: null, image: null }
   }
 }
@@ -109,12 +158,12 @@ async function fetchOnchainPreview(url: string): Promise<{
 export default defineEventHandler(async (event): Promise<PreviewResult> => {
   const query = getQuery(event)
   const rawUrl = typeof query.url === 'string' ? query.url : ''
-  const url = normalizeNetworkedArtUrl(rawUrl)
+  const url = normalizeArtworkUrl(rawUrl)
 
   if (!url) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Provide a valid https://networked.art artwork URL',
+      statusMessage: 'Provide a valid Networked.art or OpenSea artwork URL',
     })
   }
 
@@ -125,6 +174,8 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
 
   let title: string | null = null
   let image: string | null = null
+  let width: number | null = null
+  let height: number | null = null
 
   try {
     const response = await fetch(url, {
@@ -143,10 +194,24 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
     console.error('Failed to fetch artwork page', error)
   }
 
-  if (!title || !image) {
+  // Marketplace thumbs are often square crops. On-chain `image` +
+  // `media.dimensions` are the work's real frame — prefer those for OpenSea.
+  if (isOpenSeaArtworkUrl(url) || !title || !image) {
     const onchain = await fetchOnchainPreview(url)
     title = title || onchain.title
-    image = image || onchain.image
+    if (isOpenSeaArtworkUrl(url)) {
+      image = onchain.image || image
+    } else {
+      image = image || onchain.image
+    }
+    width = onchain.width
+    height = onchain.height
+  }
+
+  if (isOpenSeaArtworkUrl(url) && (!title || !image)) {
+    const opensea = await fetchOpenSeaPreview(url)
+    title = title || opensea.title
+    image = image || opensea.image
   }
 
   if (!image) {
@@ -156,7 +221,7 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
     })
   }
 
-  const result: PreviewResult = { url, title, image }
+  const result: PreviewResult = { url, title, image, width, height }
   cache.set(url, { expiresAt: Date.now() + CACHE_TTL_MS, value: result })
   return result
 })
