@@ -202,17 +202,20 @@ async function onComplete(receipt?: TransactionReceipt) {
 
       <div class="composer__fields">
         <div class="composer__url-field">
-          <div id="artwork-url-label">
-            Artwork URL
+          <div class="composer__url-label">
+            <div id="artwork-url-label">
+              Artwork URL
+            </div>
+            <ArtworkPlatforms />
           </div>
           <input
             v-model="artworkUrl"
             type="url"
-            placeholder="https://networked.art/…/0x…/1 or https://opensea.io/item/ethereum/0x…/1"
+            placeholder="Paste an Artwork URL to preview"
             autocomplete="off"
             spellcheck="false"
             aria-labelledby="artwork-url-label"
-          />
+          >
         </div>
 
         <p

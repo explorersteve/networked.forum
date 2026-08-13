@@ -291,7 +291,51 @@ a {
   line-height: var(--ui-line-height);
 }
 
-.composer__url-field a {
+.composer__url-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.composer__url-label .artwork-platforms {
+  margin: 0;
+}
+
+.artwork-platforms {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-inline: 0.15rem;
+  color: var(--muted);
+  vertical-align: middle;
+}
+
+.artwork-platforms__label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.artwork-platforms__mark {
+  display: inline-flex;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.artwork-platforms__mark img {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+}
+
+.artwork-platforms__mark:focus-visible {
+  outline: 1px solid var(--color);
+  outline-offset: 2px;
+}
+
+.composer__url-field a:not(.artwork-platforms__mark) {
   text-decoration: underline;
   text-underline-offset: 0.15em;
 }

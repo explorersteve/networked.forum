@@ -163,7 +163,7 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
   if (!url) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Provide a valid Networked.art or OpenSea artwork URL',
+      statusMessage: 'Provide a valid artwork URL',
     })
   }
 

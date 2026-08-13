@@ -60,6 +60,6 @@ function onImageLoad(event: Event) {
     v-else
     class="artwork-preview__empty"
   >
-    Paste a Networked.art or OpenSea artwork link to preview
+    Paste an Artwork URL to preview
   </p>
 </template>
