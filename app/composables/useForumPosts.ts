@@ -51,8 +51,8 @@ export function useForumPosts() {
 
   /**
    * Store the full embed URL before the transaction confirms — the onchain
-   * payload only keeps `0xcontract/tokenId`. Networked.art 404s without the
-   * slug, and OpenSea links cannot be rebuilt from the path alone. Best
+ * payload only keeps `0xcontract/tokenId`. Networked.art 404s without the
+ * slug, and marketplace links cannot be rebuilt from the path alone. Best
    * effort: never block posting on it.
    */
   async function rememberArtworkUrl(url: string) {

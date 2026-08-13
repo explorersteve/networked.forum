@@ -203,7 +203,7 @@ export const patchMetadata = internalMutation({
  * Client-facing: remember the full artwork URL for an onchain path. Called when
  * a post is submitted, so indexing can rebuild the embed link even if the
  * browser never reports back (closed tab, failed request, webhook / cron).
- * Stores Networked.art URLs with an artist slug, and OpenSea item URLs.
+ * Stores Networked.art URLs with an artist slug, and marketplace token URLs.
  */
 export const rememberArtworkUrl = mutation({
   args: {

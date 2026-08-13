@@ -16,4 +16,9 @@ export const artworkPlatforms: ArtworkPlatform[] = [
     src: '/platforms/opensea.svg',
     href: 'https://opensea.io',
   },
+  {
+    name: 'Art Blocks',
+    src: '/platforms/artblocks.png',
+    href: 'https://www.artblocks.io',
+  },
 ]

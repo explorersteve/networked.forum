@@ -3,6 +3,11 @@ const NETWORKED_ORIGIN = `https://${NETWORKED_HOST}`
 const OPENSEA_HOST = 'opensea.io'
 const OPENSEA_TESTNET_HOST = 'testnets.opensea.io'
 const OPENSEA_HOSTS = new Set([OPENSEA_HOST, OPENSEA_TESTNET_HOST])
+const ARTBLOCKS_HOST = 'artblocks.io'
+const ARTBLOCKS_TOKEN_HOST = 'token.artblocks.io'
+const ARTBLOCKS_HOSTS = new Set([ARTBLOCKS_HOST, ARTBLOCKS_TOKEN_HOST])
+const ARTBLOCKS_ORIGIN = `https://www.${ARTBLOCKS_HOST}`
+const ARTBLOCKS_TOKEN_API_ORIGIN = `https://${ARTBLOCKS_TOKEN_HOST}`
 
 /** URL/path with artist slug: sheipiter/0x…/2 */
 const ARTWORK_PATH_WITH_ARTIST_RE =
@@ -15,8 +20,11 @@ const OPENSEA_CHAIN_ITEM_RE =
 /** Legacy /assets/{contract}/{tokenId} (ethereum implied) */
 const OPENSEA_LEGACY_ITEM_RE =
   /^(?:[a-z]{2}(?:-[a-z]{2})?\/)?assets\/(0x[a-fA-F0-9]{40})\/(\d+)$/i
+/** /token/{chainId}/{contract}/{tokenId}, or API path without `token/` */
+const ARTBLOCKS_TOKEN_RE =
+  /^(?:token\/)?(\d+)\/(0x[a-fA-F0-9]{40})\/(\d+)$/i
 
-type ArtworkSource = 'networked' | 'opensea'
+type ArtworkSource = 'networked' | 'opensea' | 'artblocks'
 
 type ParsedArtwork = {
   artist: string | null
@@ -61,6 +69,22 @@ function parseOpenSeaPath(
   }
 
   return null
+}
+
+function parseArtBlocksPath(pathname: string): ParsedArtwork | null {
+  const path = pathname.replace(/^\/+|\/+$/g, '')
+  const match = path.match(ARTBLOCKS_TOKEN_RE)
+  if (!match?.[1] || !match[2] || !match[3]) {
+    return null
+  }
+  return {
+    artist: null,
+    contract: match[2].toLowerCase(),
+    tokenId: match[3],
+    source: 'artblocks',
+    chain: match[1],
+    testnet: false,
+  }
 }
 
 function parseNetworkedPath(pathname: string): ParsedArtwork | null {
@@ -108,6 +132,8 @@ function parseArtworkInput(value: string): ParsedArtwork | null {
       pathname = url.pathname
     } else if (OPENSEA_HOSTS.has(host)) {
       return parseOpenSeaPath(url.pathname, host === OPENSEA_TESTNET_HOST)
+    } else if (ARTBLOCKS_HOSTS.has(host)) {
+      return parseArtBlocksPath(url.pathname)
     } else if (hasScheme) {
       return null
     }
@@ -126,6 +152,11 @@ function buildOpenSeaUrl(parsed: ParsedArtwork): string {
   return `${origin}/item/${chain}/${parsed.contract}/${parsed.tokenId}`
 }
 
+function buildArtBlocksUrl(parsed: ParsedArtwork): string {
+  const chain = parsed.chain || '1'
+  return `${ARTBLOCKS_ORIGIN}/token/${chain}/${parsed.contract}/${parsed.tokenId}`
+}
+
 export function isNetworkedArtUrl(value: string): boolean {
   return parseArtworkInput(value)?.source === 'networked'
 }
@@ -134,8 +165,12 @@ export function isOpenSeaArtworkUrl(value: string): boolean {
   return parseArtworkInput(value)?.source === 'opensea'
 }
 
+export function isArtBlocksArtworkUrl(value: string): boolean {
+  return parseArtworkInput(value)?.source === 'artblocks'
+}
+
 /**
- * Full embed URL: Networked.art with artist slug, or any OpenSea item URL.
+ * Full embed URL: Networked.art with artist slug, or a marketplace token URL.
  * Bare `0x…/id` paths are not enough to rebuild a working page.
  */
 export function isCompleteArtworkUrl(value: string): boolean {
@@ -143,12 +178,12 @@ export function isCompleteArtworkUrl(value: string): boolean {
   if (!parsed) {
     return false
   }
-  return parsed.source === 'opensea' || Boolean(parsed.artist)
+  return parsed.source !== 'networked' || Boolean(parsed.artist)
 }
 
 /**
  * Onchain / composer path: `{0xcontract}/{tokenId}` (artist slug omitted).
- * Accepts Networked.art, OpenSea item/assets URLs, `{artist}/0x…/id`, or bare `0x…/id`.
+ * Accepts Networked.art, OpenSea, Art Blocks, `{artist}/0x…/id`, or bare `0x…/id`.
  */
 export function extractNetworkedArtPath(value: string): string | null {
   const parsed = parseArtworkInput(value)
@@ -160,12 +195,12 @@ export function extractNetworkedArtPath(value: string): string | null {
 
 /**
  * Build an embeddable Networked.art URL. Keeps the artist slug when present
- * in the input (needed for page fetch / OG preview). OpenSea URLs return null
- * — use `normalizeArtworkUrl` to keep the marketplace link.
+ * in the input (needed for page fetch / OG preview). Marketplace URLs return
+ * null — use `normalizeArtworkUrl` to keep the original platform link.
  */
 export function buildNetworkedArtUrl(path: string): string | null {
   const parsed = parseArtworkInput(path)
-  if (!parsed || parsed.source === 'opensea') {
+  if (!parsed || parsed.source !== 'networked') {
     return null
   }
   if (parsed.artist) {
@@ -174,7 +209,7 @@ export function buildNetworkedArtUrl(path: string): string | null {
   return `${NETWORKED_ORIGIN}/${parsed.contract}/${parsed.tokenId}`
 }
 
-/** Canonical embed URL: OpenSea stays OpenSea, Networked stays Networked. */
+/** Canonical embed URL: keep each platform's own token page. */
 export function normalizeArtworkUrl(value: string): string | null {
   const parsed = parseArtworkInput(value)
   if (!parsed) {
@@ -182,6 +217,9 @@ export function normalizeArtworkUrl(value: string): string | null {
   }
   if (parsed.source === 'opensea') {
     return buildOpenSeaUrl(parsed)
+  }
+  if (parsed.source === 'artblocks') {
+    return buildArtBlocksUrl(parsed)
   }
   return buildNetworkedArtUrl(value)
 }
@@ -201,6 +239,16 @@ export function buildOpenSeaMetadataApiUrl(value: string): string | null {
     ? 'https://testnets-api.opensea.io'
     : 'https://api.opensea.io'
   return `${origin}/api/v2/metadata/${chain}/${parsed.contract}/${parsed.tokenId}`
+}
+
+/** Art Blocks token metadata API — name, artist, and static PNG. */
+export function buildArtBlocksTokenApiUrl(value: string): string | null {
+  const parsed = parseArtworkInput(value)
+  if (!parsed || parsed.source !== 'artblocks') {
+    return null
+  }
+  const chain = parsed.chain || '1'
+  return `${ARTBLOCKS_TOKEN_API_ORIGIN}/${chain}/${parsed.contract}/${parsed.tokenId}`
 }
 
 /** Contract + token behind an artwork URL or path, for onchain lookups. */
@@ -334,6 +382,14 @@ export function isGenericNetworkedTitle(title: string | null | undefined): boole
   return normalized === 'networked.art' || normalized === 'networked'
 }
 
+export function isGenericArtBlocksTitle(title: string | null | undefined): boolean {
+  if (!title?.trim()) {
+    return true
+  }
+  const normalized = title.trim().toLowerCase()
+  return normalized === 'art blocks' || normalized === 'artblocks'
+}
+
 /** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
 export function extractArtworkImageFromHtml(html: string): string | null {
   const cdn = html.match(/https:\/\/cdn\.evm\.now\/tokens\/[a-fA-F0-9]+_md\.webp/i)
@@ -369,7 +425,7 @@ export function resolveArtworkTitleFromHtml(html: string): string | null {
   const ogTitle =
     extractMetaContent(html, 'og:title') ||
     extractMetaContent(html, 'twitter:title')
-  if (ogTitle && !isGenericNetworkedTitle(ogTitle)) {
+  if (ogTitle && !isGenericNetworkedTitle(ogTitle) && !isGenericArtBlocksTitle(ogTitle)) {
     return ogTitle
   }
   return null
@@ -380,6 +436,7 @@ export function resolveArtworkTitleFromHtml(html: string): string | null {
  * "everyone who was there by INFINITEYAY"
  * OpenSea uses "DOOM SCROLL #12 - Doom Scroll | OpenSea" — the middle
  * segment is the collection name, not the artist.
+ * Art Blocks uses "DDUST #342 by jiwa | Art Blocks".
  */
 export function parseArtworkTitle(ogTitle: string | null | undefined): {
   title: string | null
@@ -389,7 +446,12 @@ export function parseArtworkTitle(ogTitle: string | null | undefined): {
     return { title: null, artist: null }
   }
 
-  const trimmed = ogTitle.trim()
+  let trimmed = ogTitle.trim()
+  const artBlocks = trimmed.match(/^(.+?)\s+\|\s+Art Blocks$/i)
+  if (artBlocks?.[1]) {
+    trimmed = artBlocks[1].trim()
+  }
+
   const openSea = trimmed.match(/^(.+?)\s+-\s+.+?\s+\|\s+OpenSea$/i)
   if (openSea?.[1]) {
     return {

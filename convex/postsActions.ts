@@ -12,11 +12,13 @@ import {
   parseForumPayload,
 } from './lib/forum'
 import {
+  buildArtBlocksTokenApiUrl,
   buildOpenSeaCollectionApiUrl,
   buildOpenSeaMetadataApiUrl,
   extractNetworkedArtPath,
   extractOpenSeaArtistFromHtml,
   extractOpenSeaCollectionSlugFromHtml,
+  isArtBlocksArtworkUrl,
   isCompleteArtworkUrl,
   isOpenSeaArtworkUrl,
   normalizeArtworkUrl,
@@ -35,6 +37,13 @@ async function fetchArtworkMetadata(url: string): Promise<{
   artist: string
   imageUrl?: string
 }> {
+  if (isArtBlocksArtworkUrl(url)) {
+    const artblocks = await fetchArtBlocksMetadata(url)
+    if (artblocks.title || artblocks.artist || artblocks.imageUrl) {
+      return artblocks
+    }
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -132,6 +141,53 @@ async function fetchOpenSeaMetadata(url: string): Promise<{
   }
 }
 
+async function fetchArtBlocksMetadata(url: string): Promise<{
+  title: string
+  artist: string
+  imageUrl?: string
+}> {
+  const metadataUrl = buildArtBlocksTokenApiUrl(url)
+  if (!metadataUrl) {
+    return { title: '', artist: '' }
+  }
+
+  try {
+    const response = await fetch(metadataUrl, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+      return { title: '', artist: '' }
+    }
+
+    const metadata = (await response.json()) as {
+      name?: string
+      artist?: string
+      collection_name?: string
+      image?: string
+    }
+    const collection = parseArtworkTitle(
+      typeof metadata.collection_name === 'string'
+        ? metadata.collection_name
+        : null,
+    )
+    const artistFromField =
+      typeof metadata.artist === 'string' ? metadata.artist.trim() : ''
+    return {
+      title:
+        collection.title ||
+        (typeof metadata.name === 'string' ? metadata.name : ''),
+      artist: artistFromField || collection.artist || '',
+      imageUrl:
+        typeof metadata.image === 'string' && metadata.image
+          ? resolveTokenUri(metadata.image)
+          : undefined,
+    }
+  } catch (error) {
+    console.error('Failed to fetch Art Blocks metadata', error)
+    return { title: '', artist: '' }
+  }
+}
+
 const erc721MetadataAbi = parseAbi([
   'function tokenURI(uint256 tokenId) view returns (string)',
 ])
@@ -207,7 +263,7 @@ type IndexArgs = {
   titleHint?: string
   artistHint?: string
   imageUrlHint?: string
-  /** Full artwork URL (Networked slug or OpenSea). Onchain path omits it. */
+  /** Full artwork URL (Networked slug or marketplace). Onchain path omits it. */
   urlHint?: string
 }
 
@@ -233,7 +289,7 @@ function resolvePostUrl(
       continue
     }
     best = normalized
-    // OpenSea item URLs and Networked artist-slug URLs win over bare paths.
+    // Marketplace token URLs and Networked artist-slug URLs win over bare paths.
     if (isCompleteArtworkUrl(normalized)) {
       return normalized
     }
@@ -318,7 +374,11 @@ async function indexTransaction(
   })
 
   const needsEnrich =
-    !title || !artist || !imageUrl || isOpenSeaArtworkUrl(url)
+    !title ||
+    !artist ||
+    !imageUrl ||
+    isOpenSeaArtworkUrl(url) ||
+    isArtBlocksArtworkUrl(url)
   if (needsEnrich) {
     await ctx.scheduler.runAfter(0, internal.postsActions.enrichMetadata, {
       txHash,
@@ -391,6 +451,11 @@ export const enrichMetadata = internalAction({
         title = title || opensea.title
         imageUrl = imageUrl || opensea.imageUrl
       }
+    } else if (isArtBlocksArtworkUrl(args.url)) {
+      const artblocks = await fetchArtBlocksMetadata(args.url)
+      title = artblocks.title || title
+      artist = artblocks.artist || artist
+      imageUrl = artblocks.imageUrl || imageUrl
     } else if (!(title || existing?.title) || !(imageUrl || existing?.imageUrl)) {
       const onchain = await fetchOnchainMetadata(args.url)
       title = title || onchain.title

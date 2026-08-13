@@ -4,8 +4,10 @@ import {
   parseArtworkRef,
   normalizeArtworkUrl,
   isOpenSeaArtworkUrl,
+  isArtBlocksArtworkUrl,
   buildOpenSeaMetadataApiUrl,
   buildOpenSeaCollectionApiUrl,
+  buildArtBlocksTokenApiUrl,
   extractOpenSeaArtistFromHtml,
   extractOpenSeaCollectionSlugFromHtml,
   parseArtworkTitle,
@@ -195,6 +197,72 @@ async function fetchOpenSeaPreview(url: string): Promise<{
   }
 }
 
+async function fetchArtBlocksPreview(url: string): Promise<{
+  title: string | null
+  artist: string | null
+  image: string | null
+  width: number | null
+  height: number | null
+}> {
+  const metadataUrl = buildArtBlocksTokenApiUrl(url)
+  const empty = {
+    title: null,
+    artist: null,
+    image: null,
+    width: null,
+    height: null,
+  }
+  if (!metadataUrl) {
+    return empty
+  }
+
+  try {
+    const response = await fetch(metadataUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) {
+      return empty
+    }
+
+    const metadata = (await response.json()) as {
+      name?: string
+      artist?: string
+      collection_name?: string
+      image?: string
+      aspect_ratio?: number
+    }
+    const collection = parseArtworkTitle(
+      typeof metadata.collection_name === 'string'
+        ? metadata.collection_name
+        : null,
+    )
+    const artistFromField =
+      typeof metadata.artist === 'string' ? metadata.artist.trim() : ''
+    const aspectRatio =
+      typeof metadata.aspect_ratio === 'number' &&
+      Number.isFinite(metadata.aspect_ratio) &&
+      metadata.aspect_ratio > 0
+        ? metadata.aspect_ratio
+        : null
+    return {
+      title:
+        collection.title ||
+        (typeof metadata.name === 'string' ? metadata.name : null),
+      artist: artistFromField || collection.artist,
+      image:
+        typeof metadata.image === 'string' && metadata.image
+          ? resolveTokenUri(metadata.image)
+          : null,
+      width: aspectRatio ? Math.round(aspectRatio * 1000) : null,
+      height: aspectRatio ? 1000 : null,
+    }
+  } catch (error) {
+    console.error('Failed to fetch Art Blocks metadata', error)
+    return empty
+  }
+}
+
 export default defineEventHandler(async (event): Promise<PreviewResult> => {
   const query = getQuery(event)
   const rawUrl = typeof query.url === 'string' ? query.url : ''
@@ -219,28 +287,39 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
   let height: number | null = null
   let pageHtml = ''
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'text/html,application/xhtml+xml',
-        'User-Agent': PREVIEW_UA,
-      },
-      signal: AbortSignal.timeout(8_000),
-    })
-    if (response.ok) {
-      pageHtml = await response.text()
-      title = resolveArtworkTitleFromHtml(pageHtml)
-      image = resolveArtworkImageFromHtml(pageHtml)
-    }
-  } catch (error) {
-    console.error('Failed to fetch artwork page', error)
+  if (isArtBlocksArtworkUrl(url)) {
+    const artblocks = await fetchArtBlocksPreview(url)
+    title = artblocks.title
+    artist = artblocks.artist
+    image = artblocks.image
+    width = artblocks.width
+    height = artblocks.height
   }
 
-  const parsedTitle = parseArtworkTitle(title)
-  title = parsedTitle.title
-  artist = parsedTitle.artist
-  if (isOpenSeaArtworkUrl(url) && pageHtml) {
-    artist = (await fetchOpenSeaCollectionArtist(url, pageHtml)) || artist
+  if (!isArtBlocksArtworkUrl(url) || !title || !artist || !image) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'text/html,application/xhtml+xml',
+          'User-Agent': PREVIEW_UA,
+        },
+        signal: AbortSignal.timeout(8_000),
+      })
+      if (response.ok) {
+        pageHtml = await response.text()
+        title = title || resolveArtworkTitleFromHtml(pageHtml)
+        image = image || resolveArtworkImageFromHtml(pageHtml)
+      }
+    } catch (error) {
+      console.error('Failed to fetch artwork page', error)
+    }
+
+    const parsedTitle = parseArtworkTitle(title)
+    title = parsedTitle.title || title
+    artist = artist || parsedTitle.artist
+    if (isOpenSeaArtworkUrl(url) && pageHtml) {
+      artist = (await fetchOpenSeaCollectionArtist(url, pageHtml)) || artist
+    }
   }
 
   // Marketplace thumbs are often square crops. On-chain `image` +
