@@ -6,6 +6,7 @@ import {
   isOpenSeaArtworkUrl,
   isArtBlocksArtworkUrl,
   isTransientArtworkUrl,
+  isProxyableArtworkImageUrl,
   buildOpenSeaMetadataApiUrl,
   buildOpenSeaCollectionApiUrl,
   buildArtBlocksTokenApiUrl,
@@ -266,8 +267,60 @@ async function fetchArtBlocksPreview(url: string): Promise<{
   }
 }
 
-export default defineEventHandler(async (event): Promise<PreviewResult> => {
+async function proxyArtworkImage(event: Parameters<typeof getQuery>[0], src: string) {
+  if (!isProxyableArtworkImageUrl(src)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Provide a supported artwork image URL',
+    })
+  }
+
+  try {
+    const response = await fetch(src, {
+      headers: {
+        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'User-Agent': PREVIEW_UA,
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(25_000),
+    })
+    if (!response.ok) {
+      throw createError({
+        statusCode: 502,
+        statusMessage: 'Failed to fetch artwork image',
+      })
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.toLowerCase().startsWith('image/')) {
+      throw createError({
+        statusCode: 502,
+        statusMessage: 'Artwork media is not an image',
+      })
+    }
+
+    setHeader(event, 'Content-Type', contentType)
+    setHeader(event, 'Cache-Control', 'public, max-age=86400, immutable')
+    return Buffer.from(await response.arrayBuffer())
+  } catch (error) {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error
+    }
+    console.error('Failed to proxy artwork image', error)
+    throw createError({
+      statusCode: 502,
+      statusMessage: 'Failed to fetch artwork image',
+    })
+  }
+}
+
+export default defineEventHandler(async (event) => {
   const query = getQuery(event)
+  const imageSrc = typeof query.imageSrc === 'string' ? query.imageSrc : ''
+  if (imageSrc) {
+    return await proxyArtworkImage(event, imageSrc)
+  }
+
   const rawUrl = typeof query.url === 'string' ? query.url : ''
   const url = normalizeArtworkUrl(rawUrl)
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { artworkDisplayUrl } from '~/utils/networkedArt'
+
 const props = defineProps<{
   href: string
   image?: string | null
@@ -7,6 +9,10 @@ const props = defineProps<{
   width?: number | null
   height?: number | null
 }>()
+
+const displayImage = computed(() =>
+  props.image ? artworkDisplayUrl(props.image) : null,
+)
 
 const aspectStyle = computed(() => {
   if (!props.width || !props.height) {
@@ -31,18 +37,19 @@ function onImageLoad(event: Event) {
 
 <template>
   <a
-    v-if="image"
+    v-if="displayImage"
     class="artwork-preview"
     :href="href"
     target="_blank"
     rel="noopener noreferrer"
   >
     <img
-      :src="image"
+      :src="displayImage"
       :alt="title || 'Artwork preview'"
       :style="aspectStyle"
       :width="width || undefined"
       :height="height || undefined"
+      referrerpolicy="no-referrer"
       loading="lazy"
       decoding="async"
       @load="onImageLoad"

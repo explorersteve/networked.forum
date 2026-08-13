@@ -506,11 +506,19 @@ export function isGenericTransientTitle(title: string | null | undefined): boole
 
 /** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
 export function extractArtworkImageFromHtml(html: string): string | null {
-  const transientCdn = html.match(
-    /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/i,
+  const transientCdns = html.match(
+    /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/gi,
   )
-  if (transientCdn?.[0]) {
-    return cleanTransientCdnUrl(decodeHtmlEntities(transientCdn[0]))
+  const artworkCdn = transientCdns?.find((candidate) => {
+    const decoded = decodeHtmlEntities(candidate)
+    return (
+      !/\/pfps\//i.test(decoded) &&
+      !/%2Fpfps%2F/i.test(decoded) &&
+      !decoded.endsWith(')')
+    )
+  })
+  if (artworkCdn) {
+    return cleanTransientCdnUrl(decodeHtmlEntities(artworkCdn))
   }
 
   const transientImageUri = html.match(/"imageUri":"(https:[^"]+)"/)

@@ -11,6 +11,11 @@ const ARTBLOCKS_TOKEN_API_ORIGIN = `https://${ARTBLOCKS_TOKEN_HOST}`
 const TRANSIENT_HOST = 'transient.xyz'
 const TRANSIENT_ORIGIN = `https://www.${TRANSIENT_HOST}`
 const TRANSIENT_IMAGE_ORIGIN = 'https://img.transient.xyz'
+const TRANSIENT_PROXY_HOSTS = new Set([
+  'img.transient.xyz',
+  'ipfs.transientusercontent.xyz',
+  'dae.transientusercontent.xyz',
+])
 
 /** URL/path with artist slug: sheipiter/0x…/2 */
 const ARTWORK_PATH_WITH_ARTIST_RE =
@@ -458,11 +463,19 @@ export function isGenericTransientTitle(title: string | null | undefined): boole
 
 /** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
 export function extractArtworkImageFromHtml(html: string): string | null {
-  const transientCdn = html.match(
-    /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/i,
+  const transientCdns = html.match(
+    /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/gi,
   )
-  if (transientCdn?.[0]) {
-    return cleanTransientCdnUrl(decodeHtmlEntities(transientCdn[0]))
+  const artworkCdn = transientCdns?.find((candidate) => {
+    const decoded = decodeHtmlEntities(candidate)
+    return (
+      !/\/pfps\//i.test(decoded) &&
+      !/%2Fpfps%2F/i.test(decoded) &&
+      !decoded.endsWith(')')
+    )
+  })
+  if (artworkCdn) {
+    return cleanTransientCdnUrl(decodeHtmlEntities(artworkCdn))
   }
 
   const transientImageUri = html.match(/"imageUri":"(https:[^"]+)"/)
@@ -504,6 +517,30 @@ function cleanTransientCdnUrl(imageUrl: string): string {
     return parsed.toString()
   } catch {
     return imageUrl
+  }
+}
+
+/** Transient CDN blocks some browser hotlinks; load those through our proxy. */
+export function artworkDisplayUrl(imageUrl: string): string {
+  if (imageUrl.startsWith('/api/preview?imageSrc=')) {
+    return imageUrl
+  }
+  if (!isProxyableArtworkImageUrl(imageUrl)) {
+    return imageUrl
+  }
+  return `/api/preview?imageSrc=${encodeURIComponent(imageUrl)}`
+}
+
+export function isProxyableArtworkImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:') {
+      return false
+    }
+    const host = url.hostname.replace(/^www\./, '')
+    return TRANSIENT_PROXY_HOSTS.has(host)
+  } catch {
+    return false
   }
 }
 
