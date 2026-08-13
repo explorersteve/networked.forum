@@ -8,6 +8,9 @@ const ARTBLOCKS_TOKEN_HOST = 'token.artblocks.io'
 const ARTBLOCKS_HOSTS = new Set([ARTBLOCKS_HOST, ARTBLOCKS_TOKEN_HOST])
 const ARTBLOCKS_ORIGIN = `https://www.${ARTBLOCKS_HOST}`
 const ARTBLOCKS_TOKEN_API_ORIGIN = `https://${ARTBLOCKS_TOKEN_HOST}`
+const TRANSIENT_HOST = 'transient.xyz'
+const TRANSIENT_ORIGIN = `https://www.${TRANSIENT_HOST}`
+const TRANSIENT_IMAGE_ORIGIN = 'https://img.transient.xyz'
 
 /** URL/path with artist slug: sheipiter/0x…/2 */
 const ARTWORK_PATH_WITH_ARTIST_RE =
@@ -23,8 +26,11 @@ const OPENSEA_LEGACY_ITEM_RE =
 /** /token/{chainId}/{contract}/{tokenId}, or API path without `token/` */
 const ARTBLOCKS_TOKEN_RE =
   /^(?:token\/)?(\d+)\/(0x[a-fA-F0-9]{40})\/(\d+)$/i
+/** /nfts/{chain}/{contract}/{tokenId} */
+const TRANSIENT_NFT_RE =
+  /^nfts\/([a-z0-9-]+)\/(0x[a-fA-F0-9]{40})\/(\d+)$/i
 
-type ArtworkSource = 'networked' | 'opensea' | 'artblocks'
+type ArtworkSource = 'networked' | 'opensea' | 'artblocks' | 'transient'
 
 type ParsedArtwork = {
   artist: string | null
@@ -87,6 +93,26 @@ function parseArtBlocksPath(pathname: string): ParsedArtwork | null {
   }
 }
 
+function parseTransientPath(pathname: string): ParsedArtwork | null {
+  const path = pathname.replace(/^\/+|\/+$/g, '')
+  const match = path.match(TRANSIENT_NFT_RE)
+  if (!match?.[1] || !match[2] || !match[3]) {
+    return null
+  }
+  const chain = match[1].toLowerCase()
+  if (chain.startsWith('0x')) {
+    return null
+  }
+  return {
+    artist: null,
+    contract: match[2].toLowerCase(),
+    tokenId: match[3],
+    source: 'transient',
+    chain,
+    testnet: false,
+  }
+}
+
 function parseNetworkedPath(pathname: string): ParsedArtwork | null {
   const path = pathname.replace(/^\/+|\/+$/g, '')
   const withArtist = path.match(ARTWORK_PATH_WITH_ARTIST_RE)
@@ -134,6 +160,8 @@ function parseArtworkInput(value: string): ParsedArtwork | null {
       return parseOpenSeaPath(url.pathname, host === OPENSEA_TESTNET_HOST)
     } else if (ARTBLOCKS_HOSTS.has(host)) {
       return parseArtBlocksPath(url.pathname)
+    } else if (host === TRANSIENT_HOST) {
+      return parseTransientPath(url.pathname)
     } else if (hasScheme) {
       return null
     }
@@ -157,6 +185,11 @@ function buildArtBlocksUrl(parsed: ParsedArtwork): string {
   return `${ARTBLOCKS_ORIGIN}/token/${chain}/${parsed.contract}/${parsed.tokenId}`
 }
 
+function buildTransientUrl(parsed: ParsedArtwork): string {
+  const chain = parsed.chain || 'ethereum'
+  return `${TRANSIENT_ORIGIN}/nfts/${chain}/${parsed.contract}/${parsed.tokenId}`
+}
+
 export function isNetworkedArtUrl(value: string): boolean {
   return parseArtworkInput(value)?.source === 'networked'
 }
@@ -167,6 +200,10 @@ export function isOpenSeaArtworkUrl(value: string): boolean {
 
 export function isArtBlocksArtworkUrl(value: string): boolean {
   return parseArtworkInput(value)?.source === 'artblocks'
+}
+
+export function isTransientArtworkUrl(value: string): boolean {
+  return parseArtworkInput(value)?.source === 'transient'
 }
 
 /**
@@ -183,7 +220,7 @@ export function isCompleteArtworkUrl(value: string): boolean {
 
 /**
  * Onchain / composer path: `{0xcontract}/{tokenId}` (artist slug omitted).
- * Accepts Networked.art, OpenSea, Art Blocks, `{artist}/0x…/id`, or bare `0x…/id`.
+ * Accepts Networked.art, OpenSea, Art Blocks, Transient, `{artist}/0x…/id`, or bare `0x…/id`.
  */
 export function extractNetworkedArtPath(value: string): string | null {
   const parsed = parseArtworkInput(value)
@@ -220,6 +257,9 @@ export function normalizeArtworkUrl(value: string): string | null {
   }
   if (parsed.source === 'artblocks') {
     return buildArtBlocksUrl(parsed)
+  }
+  if (parsed.source === 'transient') {
+    return buildTransientUrl(parsed)
   }
   return buildNetworkedArtUrl(value)
 }
@@ -374,6 +414,20 @@ export function isGenericOpenSeaOgImage(imageUrl: string): boolean {
   }
 }
 
+/** Transient page OG tags point at a branded `/og-image` card, not the NFT. */
+export function isGenericTransientOgImage(imageUrl: string): boolean {
+  try {
+    const url = new URL(imageUrl)
+    const host = url.hostname.replace(/^www\./, '')
+    if (host !== TRANSIENT_HOST) {
+      return false
+    }
+    return /\/og-image$/i.test(url.pathname.replace(/\/+$/, ''))
+  } catch {
+    return false
+  }
+}
+
 export function isGenericNetworkedTitle(title: string | null | undefined): boolean {
   if (!title?.trim()) {
     return true
@@ -390,8 +444,39 @@ export function isGenericArtBlocksTitle(title: string | null | undefined): boole
   return normalized === 'art blocks' || normalized === 'artblocks'
 }
 
+export function isGenericTransientTitle(title: string | null | undefined): boolean {
+  if (!title?.trim()) {
+    return true
+  }
+  const normalized = title.trim().toLowerCase()
+  return (
+    normalized === 'transient' ||
+    normalized === 'transient labs' ||
+    normalized === 'transient.xyz'
+  )
+}
+
 /** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
 export function extractArtworkImageFromHtml(html: string): string | null {
+  const transientCdn = html.match(
+    /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/i,
+  )
+  if (transientCdn?.[0]) {
+    return cleanTransientCdnUrl(decodeHtmlEntities(transientCdn[0]))
+  }
+
+  const transientImageUri = html.match(/"imageUri":"(https:[^"]+)"/)
+  if (transientImageUri?.[1]) {
+    return buildTransientPreviewImage(decodeHtmlEntities(transientImageUri[1]))
+  }
+
+  const transientIpfs = html.match(
+    /https:\/\/ipfs\.transientusercontent\.xyz\/ipfs\/[A-Za-z0-9]+\/media/i,
+  )
+  if (transientIpfs?.[0]) {
+    return buildTransientPreviewImage(transientIpfs[0])
+  }
+
   const cdn = html.match(/https:\/\/cdn\.evm\.now\/tokens\/[a-fA-F0-9]+_md\.webp/i)
   if (cdn?.[0]) {
     return cdn[0]
@@ -401,6 +486,25 @@ export function extractArtworkImageFromHtml(html: string): string | null {
     return ipfs[0]
   }
   return null
+}
+
+function buildTransientPreviewImage(sourceUrl: string): string {
+  if (/^https:\/\/img\.transient\.xyz\//i.test(sourceUrl)) {
+    return cleanTransientCdnUrl(sourceUrl)
+  }
+  return `${TRANSIENT_IMAGE_ORIGIN}/?output=webp&url=${encodeURIComponent(sourceUrl)}&w=640`
+}
+
+function cleanTransientCdnUrl(imageUrl: string): string {
+  try {
+    const parsed = new URL(imageUrl)
+    if (parsed.searchParams.get('we') === '') {
+      parsed.searchParams.delete('we')
+    }
+    return parsed.toString()
+  } catch {
+    return imageUrl
+  }
 }
 
 export function resolveArtworkImageFromHtml(html: string): string | null {
@@ -413,7 +517,9 @@ export function resolveArtworkImageFromHtml(html: string): string | null {
       !isGenericNetworkedOgImage(ogImage) &&
       !isGenericNetworkedOgImage(unwrapped) &&
       !isGenericOpenSeaOgImage(ogImage) &&
-      !isGenericOpenSeaOgImage(unwrapped)
+      !isGenericOpenSeaOgImage(unwrapped) &&
+      !isGenericTransientOgImage(ogImage) &&
+      !isGenericTransientOgImage(unwrapped)
     ) {
       return unwrapped
     }
@@ -425,7 +531,12 @@ export function resolveArtworkTitleFromHtml(html: string): string | null {
   const ogTitle =
     extractMetaContent(html, 'og:title') ||
     extractMetaContent(html, 'twitter:title')
-  if (ogTitle && !isGenericNetworkedTitle(ogTitle) && !isGenericArtBlocksTitle(ogTitle)) {
+  if (
+    ogTitle &&
+    !isGenericNetworkedTitle(ogTitle) &&
+    !isGenericArtBlocksTitle(ogTitle) &&
+    !isGenericTransientTitle(ogTitle)
+  ) {
     return ogTitle
   }
   return null
@@ -437,6 +548,7 @@ export function resolveArtworkTitleFromHtml(html: string): string | null {
  * OpenSea uses "DOOM SCROLL #12 - Doom Scroll | OpenSea" — the middle
  * segment is the collection name, not the artist.
  * Art Blocks uses "DDUST #342 by jiwa | Art Blocks".
+ * Transient uses "Dust by @Monk | Transient Labs".
  */
 export function parseArtworkTitle(ogTitle: string | null | undefined): {
   title: string | null
@@ -450,6 +562,11 @@ export function parseArtworkTitle(ogTitle: string | null | undefined): {
   const artBlocks = trimmed.match(/^(.+?)\s+\|\s+Art Blocks$/i)
   if (artBlocks?.[1]) {
     trimmed = artBlocks[1].trim()
+  }
+
+  const transient = trimmed.match(/^(.+?)\s+\|\s+Transient Labs$/i)
+  if (transient?.[1]) {
+    trimmed = transient[1].trim()
   }
 
   const openSea = trimmed.match(/^(.+?)\s+-\s+.+?\s+\|\s+OpenSea$/i)
@@ -467,7 +584,7 @@ export function parseArtworkTitle(ogTitle: string | null | undefined): {
 
   return {
     title: match[1].trim(),
-    artist: match[2].trim(),
+    artist: match[2].trim().replace(/^@/, ''),
   }
 }
 
@@ -481,6 +598,22 @@ export function extractOpenSeaArtistFromHtml(html: string): string | null {
   )
   const name = match?.[1]?.trim()
   return name ? decodeHtmlEntities(name) : null
+}
+
+/**
+ * Transient token pages embed the creator as username/displayName in the
+ * RSC payload, and as a UserName node in the HTML.
+ */
+export function extractTransientArtistFromHtml(html: string): string | null {
+  const json = html.match(/"username":"([^"]+)","displayName":"([^"]+)"/)
+  const fromJson = json?.[2]?.trim() || json?.[1]?.trim()
+  if (fromJson) {
+    return decodeHtmlEntities(fromJson).replace(/^@/, '')
+  }
+
+  const fromDom = html.match(/UserName-module_root[^>]*>\s*([^<]+)/)
+  const name = fromDom?.[1]?.trim()
+  return name ? decodeHtmlEntities(name).replace(/^@/, '') : null
 }
 
 /** Collection slug from OpenSea's embedded item payload. */
@@ -551,4 +684,12 @@ export function parseDimensionString(
     return null
   }
   return { width, height }
+}
+
+/** Transient (and similar) pages embed `"dimensions":"720x1280"` in page JSON. */
+export function extractArtworkDimensionsFromHtml(
+  html: string,
+): { width: number; height: number } | null {
+  const match = html.match(/dimensions\\?":\\?"(\d+\s*[x×]\s*\d+)/i)
+  return parseDimensionString(match?.[1])
 }

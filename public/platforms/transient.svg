@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img">
+  <title>Transient</title>
+  <defs>
+    <linearGradient id="transient-left" x1="4" y1="4" x2="11.2" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4a4a4a"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="transient-right" x1="12.8" y1="8" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#4a4a4a"/>
+    </linearGradient>
+  </defs>
+  <rect width="24" height="24" fill="#111111"/>
+  <polygon points="4,4 11.2,4 11.2,16" fill="url(#transient-left)"/>
+  <polygon points="12.8,8 12.8,20 20,20" fill="url(#transient-right)"/>
+</svg>

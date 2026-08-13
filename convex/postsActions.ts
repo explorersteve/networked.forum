@@ -18,9 +18,11 @@ import {
   extractNetworkedArtPath,
   extractOpenSeaArtistFromHtml,
   extractOpenSeaCollectionSlugFromHtml,
+  extractTransientArtistFromHtml,
   isArtBlocksArtworkUrl,
   isCompleteArtworkUrl,
   isOpenSeaArtworkUrl,
+  isTransientArtworkUrl,
   normalizeArtworkUrl,
   parseArtworkRef,
   parseArtworkTitle,
@@ -63,10 +65,13 @@ async function fetchArtworkMetadata(url: string): Promise<{
     const openSeaArtist = isOpenSeaArtworkUrl(url)
       ? await resolveOpenSeaArtist(url, html)
       : null
+    const transientArtist = isTransientArtworkUrl(url)
+      ? extractTransientArtistFromHtml(html)
+      : null
 
     return {
       title: parsed.title ?? '',
-      artist: openSeaArtist || parsed.artist || '',
+      artist: openSeaArtist || transientArtist || parsed.artist || '',
       imageUrl: imageUrl ?? undefined,
     }
   } catch (error) {
@@ -378,7 +383,8 @@ async function indexTransaction(
     !artist ||
     !imageUrl ||
     isOpenSeaArtworkUrl(url) ||
-    isArtBlocksArtworkUrl(url)
+    isArtBlocksArtworkUrl(url) ||
+    isTransientArtworkUrl(url)
   if (needsEnrich) {
     await ctx.scheduler.runAfter(0, internal.postsActions.enrichMetadata, {
       txHash,

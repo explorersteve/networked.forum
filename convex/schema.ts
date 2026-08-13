@@ -18,7 +18,7 @@ export default defineSchema({
 
   /**
    * The onchain payload stores a bare `0xcontract/tokenId` path, but
-   * Networked.art 404s without the artist slug and OpenSea links are not
+   * Networked.art 404s without the artist slug and marketplace links are not
    * reconstructable from the path alone. Capture the full embed URL at
    * submit time — webhook / cron indexing has no other way to rebuild it.
    */

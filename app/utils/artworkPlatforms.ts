@@ -21,4 +21,9 @@ export const artworkPlatforms: ArtworkPlatform[] = [
     src: '/platforms/artblocks.png',
     href: 'https://www.artblocks.io',
   },
+  {
+    name: 'Transient',
+    src: '/platforms/transient.svg',
+    href: 'https://www.transient.xyz',
+  },
 ]

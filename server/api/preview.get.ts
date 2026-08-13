@@ -5,11 +5,14 @@ import {
   normalizeArtworkUrl,
   isOpenSeaArtworkUrl,
   isArtBlocksArtworkUrl,
+  isTransientArtworkUrl,
   buildOpenSeaMetadataApiUrl,
   buildOpenSeaCollectionApiUrl,
   buildArtBlocksTokenApiUrl,
   extractOpenSeaArtistFromHtml,
   extractOpenSeaCollectionSlugFromHtml,
+  extractTransientArtistFromHtml,
+  extractArtworkDimensionsFromHtml,
   parseArtworkTitle,
   parseDimensionString,
   resolveArtworkImageFromHtml,
@@ -319,6 +322,12 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
     artist = artist || parsedTitle.artist
     if (isOpenSeaArtworkUrl(url) && pageHtml) {
       artist = (await fetchOpenSeaCollectionArtist(url, pageHtml)) || artist
+    }
+    if (isTransientArtworkUrl(url) && pageHtml) {
+      artist = artist || extractTransientArtistFromHtml(pageHtml)
+      const dims = extractArtworkDimensionsFromHtml(pageHtml)
+      width = width ?? dims?.width ?? null
+      height = height ?? dims?.height ?? null
     }
   }
 
