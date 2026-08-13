@@ -163,6 +163,7 @@ async function submitPost(): Promise<Hash> {
 
 async function onComplete(receipt?: TransactionReceipt) {
   const titleHint = preview.value?.title
+  const artistHint = preview.value?.artist
   const imageUrlHint = preview.value?.image
   const urlHint = normalizedUrl.value
 
@@ -174,6 +175,7 @@ async function onComplete(receipt?: TransactionReceipt) {
       await indexConfirmedPost({
         txHash: receipt.transactionHash,
         titleHint,
+        artistHint,
         imageUrlHint,
         urlHint,
       })

@@ -5,6 +5,10 @@ import {
   normalizeArtworkUrl,
   isOpenSeaArtworkUrl,
   buildOpenSeaMetadataApiUrl,
+  buildOpenSeaCollectionApiUrl,
+  extractOpenSeaArtistFromHtml,
+  extractOpenSeaCollectionSlugFromHtml,
+  parseArtworkTitle,
   parseDimensionString,
   resolveArtworkImageFromHtml,
   resolveArtworkTitleFromHtml,
@@ -13,6 +17,7 @@ import {
 type PreviewResult = {
   url: string
   title: string | null
+  artist: string | null
   image: string | null
   width: number | null
   height: number | null
@@ -120,6 +125,41 @@ async function fetchOnchainPreview(url: string): Promise<{
   }
 }
 
+async function fetchOpenSeaCollectionArtist(
+  url: string,
+  html: string,
+): Promise<string | null> {
+  const fromHtml = extractOpenSeaArtistFromHtml(html)
+  if (fromHtml) {
+    return fromHtml
+  }
+
+  const slug = extractOpenSeaCollectionSlugFromHtml(html)
+  const collectionUrl = slug ? buildOpenSeaCollectionApiUrl(slug, url) : null
+  if (!collectionUrl) {
+    return null
+  }
+
+  try {
+    const response = await fetch(collectionUrl, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) {
+      return null
+    }
+    const collection = (await response.json()) as { twitter_username?: string }
+    const handle =
+      typeof collection.twitter_username === 'string'
+        ? collection.twitter_username.trim()
+        : ''
+    return handle || null
+  } catch (error) {
+    console.error('Failed to fetch OpenSea collection artist', error)
+    return null
+  }
+}
+
 async function fetchOpenSeaPreview(url: string): Promise<{
   title: string | null
   image: string | null
@@ -173,9 +213,11 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
   }
 
   let title: string | null = null
+  let artist: string | null = null
   let image: string | null = null
   let width: number | null = null
   let height: number | null = null
+  let pageHtml = ''
 
   try {
     const response = await fetch(url, {
@@ -186,12 +228,19 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
       signal: AbortSignal.timeout(8_000),
     })
     if (response.ok) {
-      const html = await response.text()
-      title = resolveArtworkTitleFromHtml(html)
-      image = resolveArtworkImageFromHtml(html)
+      pageHtml = await response.text()
+      title = resolveArtworkTitleFromHtml(pageHtml)
+      image = resolveArtworkImageFromHtml(pageHtml)
     }
   } catch (error) {
     console.error('Failed to fetch artwork page', error)
+  }
+
+  const parsedTitle = parseArtworkTitle(title)
+  title = parsedTitle.title
+  artist = parsedTitle.artist
+  if (isOpenSeaArtworkUrl(url) && pageHtml) {
+    artist = (await fetchOpenSeaCollectionArtist(url, pageHtml)) || artist
   }
 
   // Marketplace thumbs are often square crops. On-chain `image` +
@@ -221,7 +270,7 @@ export default defineEventHandler(async (event): Promise<PreviewResult> => {
     })
   }
 
-  const result: PreviewResult = { url, title, image, width, height }
+  const result: PreviewResult = { url, title, artist, image, width, height }
   cache.set(url, { expiresAt: Date.now() + CACHE_TTL_MS, value: result })
   return result
 })

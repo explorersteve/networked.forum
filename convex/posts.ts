@@ -120,6 +120,57 @@ export const upsert = internalMutation({
   },
 })
 
+export const setArtist = internalMutation({
+  args: {
+    txHash: v.string(),
+    artist: v.string(),
+  },
+  returns: v.union(v.id('posts'), v.null()),
+  handler: async (ctx, args) => {
+    const txHash = args.txHash.toLowerCase()
+    const existing = await ctx.db
+      .query('posts')
+      .withIndex('by_txHash', (q) => q.eq('txHash', txHash))
+      .unique()
+
+    if (!existing) {
+      return null
+    }
+
+    await ctx.db.patch(existing._id, { artist: args.artist })
+    return existing._id
+  },
+})
+
+export const setArtistByPath = internalMutation({
+  args: {
+    path: v.string(),
+    artist: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const posts = await ctx.db
+      .query('posts')
+      .withIndex('by_timestamp')
+      .order('desc')
+      .take(100)
+    const needle = args.path.toLowerCase()
+    let updated = 0
+    for (const post of posts) {
+      const postPath = extractNetworkedArtPath(post.url)?.toLowerCase()
+      if (postPath !== needle) {
+        continue
+      }
+      if (post.artist === args.artist) {
+        continue
+      }
+      await ctx.db.patch(post._id, { artist: args.artist })
+      updated += 1
+    }
+    return updated
+  },
+})
+
 export const patchMetadata = internalMutation({
   args: {
     txHash: v.string(),
@@ -259,6 +310,35 @@ export const requestIndex = mutation({
       artistHint: args.artistHint,
       imageUrlHint: args.imageUrlHint,
       urlHint: args.urlHint,
+    })
+    return null
+  },
+})
+
+/** Re-fetch title / artist / image for an indexed post (OpenSea creator, etc.). */
+export const requestEnrich = mutation({
+  args: {
+    txHash: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (!/^0x[a-fA-F0-9]{64}$/.test(args.txHash)) {
+      throw new Error('Invalid transaction hash')
+    }
+
+    const txHash = args.txHash.toLowerCase()
+    const existing = await ctx.db
+      .query('posts')
+      .withIndex('by_txHash', (q) => q.eq('txHash', txHash))
+      .unique()
+
+    if (!existing) {
+      throw new Error('Post not found')
+    }
+
+    await ctx.scheduler.runAfter(0, internal.postsActions.enrichMetadata, {
+      txHash,
+      url: existing.url,
     })
     return null
   },

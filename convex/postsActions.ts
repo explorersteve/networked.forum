@@ -12,8 +12,11 @@ import {
   parseForumPayload,
 } from './lib/forum'
 import {
+  buildOpenSeaCollectionApiUrl,
   buildOpenSeaMetadataApiUrl,
   extractNetworkedArtPath,
+  extractOpenSeaArtistFromHtml,
+  extractOpenSeaCollectionSlugFromHtml,
   isCompleteArtworkUrl,
   isOpenSeaArtworkUrl,
   normalizeArtworkUrl,
@@ -48,15 +51,50 @@ async function fetchArtworkMetadata(url: string): Promise<{
     const ogTitle = resolveArtworkTitleFromHtml(html)
     const imageUrl = resolveArtworkImageFromHtml(html)
     const parsed = parseArtworkTitle(ogTitle)
+    const openSeaArtist = isOpenSeaArtworkUrl(url)
+      ? await resolveOpenSeaArtist(url, html)
+      : null
 
     return {
       title: parsed.title ?? '',
-      artist: parsed.artist ?? '',
+      artist: openSeaArtist || parsed.artist || '',
       imageUrl: imageUrl ?? undefined,
     }
   } catch (error) {
     console.error('Failed to fetch artwork metadata', error)
     return { title: '', artist: '' }
+  }
+}
+
+async function resolveOpenSeaArtist(
+  url: string,
+  html: string,
+): Promise<string> {
+  const fromHtml = extractOpenSeaArtistFromHtml(html)
+  if (fromHtml) {
+    return fromHtml
+  }
+
+  const slug = extractOpenSeaCollectionSlugFromHtml(html)
+  const collectionUrl = slug ? buildOpenSeaCollectionApiUrl(slug, url) : null
+  if (!collectionUrl) {
+    return ''
+  }
+
+  try {
+    const response = await fetch(collectionUrl, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) {
+      return ''
+    }
+    const collection = (await response.json()) as { twitter_username?: string }
+    return typeof collection.twitter_username === 'string'
+      ? collection.twitter_username.trim()
+      : ''
+  } catch (error) {
+    console.error('Failed to fetch OpenSea collection artist', error)
+    return ''
   }
 }
 
@@ -279,7 +317,8 @@ async function indexTransaction(
     blockNumber: Number(blockNumber),
   })
 
-  const needsEnrich = !title || !artist || !imageUrl
+  const needsEnrich =
+    !title || !artist || !imageUrl || isOpenSeaArtworkUrl(url)
   if (needsEnrich) {
     await ctx.scheduler.runAfter(0, internal.postsActions.enrichMetadata, {
       txHash,

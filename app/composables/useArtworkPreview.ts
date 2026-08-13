@@ -3,6 +3,7 @@ import { normalizeArtworkUrl } from '~/utils/networkedArt'
 export type ArtworkPreview = {
   url: string
   title: string | null
+  artist: string | null
   image: string | null
   width: number | null
   height: number | null

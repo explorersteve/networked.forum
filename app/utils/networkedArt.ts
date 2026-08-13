@@ -378,7 +378,8 @@ export function resolveArtworkTitleFromHtml(html: string): string | null {
 /**
  * Networked.art packs title + artist into one string, e.g.
  * "everyone who was there by INFINITEYAY"
- * OpenSea uses "DOOM SCROLL #12 - Doom Scroll | OpenSea"
+ * OpenSea uses "DOOM SCROLL #12 - Doom Scroll | OpenSea" — the middle
+ * segment is the collection name, not the artist.
  */
 export function parseArtworkTitle(ogTitle: string | null | undefined): {
   title: string | null
@@ -389,11 +390,11 @@ export function parseArtworkTitle(ogTitle: string | null | undefined): {
   }
 
   const trimmed = ogTitle.trim()
-  const openSea = trimmed.match(/^(.+?)\s+-\s+(.+?)\s+\|\s+OpenSea$/i)
-  if (openSea?.[1] && openSea[2]) {
+  const openSea = trimmed.match(/^(.+?)\s+-\s+.+?\s+\|\s+OpenSea$/i)
+  if (openSea?.[1]) {
     return {
       title: openSea[1].trim(),
-      artist: openSea[2].trim(),
+      artist: null,
     }
   }
 
@@ -406,6 +407,38 @@ export function parseArtworkTitle(ogTitle: string | null | undefined): {
     title: match[1].trim(),
     artist: match[2].trim(),
   }
+}
+
+/**
+ * OpenSea item pages embed the collection owner (the artist) in page JSON
+ * as Collection.owner.displayName — not the token holder.
+ */
+export function extractOpenSeaArtistFromHtml(html: string): string | null {
+  const match = html.match(
+    /"__typename":"Collection","owner":\{"displayName":"([^"]+)"/,
+  )
+  const name = match?.[1]?.trim()
+  return name ? decodeHtmlEntities(name) : null
+}
+
+/** Collection slug from OpenSea's embedded item payload. */
+export function extractOpenSeaCollectionSlugFromHtml(html: string): string | null {
+  const match = html.match(/"slug":"([a-z0-9-]+)","isPlaceholderCollection"/)
+  return match?.[1] ?? null
+}
+
+export function buildOpenSeaCollectionApiUrl(
+  slug: string,
+  artworkUrl?: string,
+): string | null {
+  if (!slug.trim()) {
+    return null
+  }
+  const parsed = artworkUrl ? parseArtworkInput(artworkUrl) : null
+  const origin = parsed?.testnet
+    ? 'https://testnets-api.opensea.io'
+    : 'https://api.opensea.io'
+  return `${origin}/api/v2/collections/${encodeURIComponent(slug)}`
 }
 
 export function extractMetaContent(html: string, key: string): string | null {
