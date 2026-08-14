@@ -51,20 +51,24 @@
   --border-shadow-highlight: none;
   --shadow: none;
 
-  --button-border-radius: 0;
+  --button-border-radius: 0.75em;
   --button-background: #ffffff;
-  --button-background-highlight: #f5f5f5;
-  --button-color: var(--color);
-  --button-color-highlight: var(--color);
-  --button-icon-color: var(--muted);
-  --button-icon-color-highlight: var(--color);
+  --button-background-highlight: #ffffff;
+  --button-color: #000000;
+  --button-color-highlight: #000000;
+  --button-icon-color: #000000;
+  --button-icon-color-highlight: #000000;
+  --button-radius: 0.75em;
+  --button-face: #ffffff;
+  --button-outline-color: #000000;
 
-  --button-primary-background: #111111;
-  --button-primary-background-highlight: #2a2a2a;
-  --button-primary-border-color: #111111;
-  --button-primary-border-color-highlight: #2a2a2a;
-  --button-primary-color: #ffffff;
-  --button-primary-color-highlight: #ffffff;
+  --button-primary-background: #ffffff;
+  --button-primary-background-highlight: #ffffff;
+  --button-primary-border-color: #000000;
+  --button-primary-border-color-highlight: #000000;
+  --button-primary-color: #000000;
+  --button-primary-color-highlight: #000000;
+  --forum-button-height: 2.75rem;
 
   --input-background: #ffffff;
   --input-background-highlight: #ffffff;
@@ -76,6 +80,7 @@
 
   --dialog-border-radius: 0;
   --dialog-header-background: #ffffff;
+  --dialog-close-color: #000000;
   --backdrop-background: rgba(0, 0, 0, 0.35);
 
   --toast-border-radius: 0;
@@ -92,7 +97,6 @@ body {
   background: var(--background);
   color: var(--color);
   font-family: var(--font-family);
-  overflow-x: clip;
 }
 
 body {
@@ -100,14 +104,9 @@ body {
   min-block-size: 100dvh;
 }
 
-/* No hover/scroll motion on the main app surface. */
-button,
-a.button,
-.header-button,
-.wallet-button,
+/* Keep dialog chrome still; buttons use the 3D press motion below. */
 .dialog,
 [class*='dialog'] {
-  transition: none !important;
   animation: none !important;
 }
 
@@ -131,11 +130,16 @@ a {
   gap: var(--spacer-lg);
   min-width: 0;
   box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .app-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--background);
   border-bottom: var(--border);
+  overflow: visible;
 }
 
 .app-header__inner {
@@ -190,53 +194,116 @@ a {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: var(--spacer-sm);
+  gap: 0.65rem;
   z-index: 1;
   min-width: 0;
+  padding-block: 0.2em;
 }
 
+/* Adapted from Uiverse.io by Voxybuns */
+button,
+a.button,
 .header-button,
-.wallet-button {
-  border: 1px solid #111111 !important;
-  border-radius: 0 !important;
-  background: #ffffff !important;
-  color: #111111 !important;
-  box-shadow: none !important;
-  box-sizing: border-box;
-  min-inline-size: 2.75rem;
-  min-block-size: 2.75rem;
-  block-size: auto;
-  padding: 0 1rem;
-  font-size: 0.8125rem;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  text-decoration: none;
+.wallet-button,
+.primary {
+  --forum-button-height: 2.75rem;
+  --button-radius: 0.75em;
+  --button-face: #ffffff;
+  --button-outline-color: #000000;
+
+  appearance: none;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: none !important;
-}
-
-.header-button:focus-visible,
-.wallet-button:focus-visible {
-  background: #f5f5f5 !important;
+  gap: 0.4em;
+  box-sizing: border-box;
+  margin: 0;
+  block-size: var(--forum-button-height) !important;
+  min-block-size: var(--forum-button-height) !important;
+  max-block-size: var(--forum-button-height) !important;
+  padding: 0 1.5em;
+  border: 2px solid var(--button-outline-color) !important;
+  border-radius: var(--button-radius) !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  color: #000000 !important;
+  box-shadow: 0 0.2em 0 0 var(--button-outline-color) !important;
+  font-family: var(--font-family);
+  font-size: 1rem;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  letter-spacing: var(--ui-letter-spacing);
+  text-transform: none;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: visible;
+  transform: translateY(-0.2em);
+  transition: transform 100ms ease, box-shadow 100ms ease;
 }
 
 @media (hover: hover) {
+  button:hover,
+  a.button:hover,
   .header-button:hover,
-  .wallet-button:hover {
-    background: #f5f5f5 !important;
+  .wallet-button:hover,
+  .primary:hover {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    transform: translateY(-0.33em);
+    box-shadow: 0 0.33em 0 0 var(--button-outline-color) !important;
   }
 }
 
-.header-button.router-link-active {
-  background: #111111 !important;
-  color: #ffffff !important;
+button:active,
+a.button:active,
+.header-button:active,
+.wallet-button:active,
+.primary:active {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  transform: translateY(0);
+  box-shadow: 0 0 0 0 var(--button-outline-color) !important;
+}
+
+button:focus-visible,
+a.button:focus-visible,
+.header-button:focus-visible,
+.wallet-button:focus-visible,
+.primary:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 4px;
+}
+
+button:disabled,
+button[aria-disabled='true'],
+a.button[aria-disabled='true'],
+.header-button:disabled,
+.wallet-button:disabled,
+.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+button:disabled:hover,
+button[aria-disabled='true']:hover,
+a.button[aria-disabled='true']:hover,
+button:disabled:active,
+button[aria-disabled='true']:active,
+a.button[aria-disabled='true']:active,
+.primary:disabled:hover,
+.primary:disabled:active {
+  transform: translateY(-0.2em);
+  box-shadow: 0 0.2em 0 0 var(--button-outline-color) !important;
 }
 
 .header-button--icon {
-  min-inline-size: 2.75rem;
+  inline-size: var(--forum-button-height);
+  min-inline-size: var(--forum-button-height);
   padding: 0;
 }
 
@@ -248,7 +315,6 @@ a {
 
 .wallet-button {
   max-inline-size: 11rem;
-  overflow: hidden;
 }
 
 .wallet-button :is(span, strong, small, .icon) {
@@ -257,6 +323,63 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.dialog-content {
+  position: relative;
+}
+
+.dialog .close,
+.dialog-content > button.close {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  z-index: 5;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  inset-inline-end: 0;
+  inset-block-start: 0;
+  block-size: 2.5rem !important;
+  min-block-size: 2.5rem !important;
+  max-block-size: 2.5rem !important;
+  inline-size: 2.5rem !important;
+  min-inline-size: 2.5rem;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: #000000 !important;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+  opacity: 1 !important;
+  transform: none !important;
+  overflow: visible;
+  cursor: pointer;
+}
+
+.dialog .close:hover,
+.dialog .close:active,
+.dialog .close:focus-visible,
+.dialog-content > button.close:hover,
+.dialog-content > button.close:active {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #000000 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+.dialog .close :is(svg, .icon, [class*='icon']) {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #000000;
 }
 
 .section-label {
@@ -348,8 +471,7 @@ a {
 }
 
 .composer__actions :is(button, a.button, .wallet-button, .primary) {
-  min-block-size: 2.75rem;
-  padding-inline: 1.1rem;
+  block-size: var(--forum-button-height);
 }
 
 .composer__hint {
@@ -362,24 +484,39 @@ a {
 .composer input[type='text'],
 .composer textarea {
   width: 100%;
-  border: 1px solid #111111;
-  border-radius: 0;
+  border: 2px solid var(--button-outline-color);
+  border-radius: var(--button-radius);
   background: #ffffff;
   color: #111111;
   box-shadow: none;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 1rem;
   font: inherit;
   font-size: var(--font-sm);
+}
+
+.composer input[type='url']:focus,
+.composer input[type='url']:focus-visible,
+.composer input[type='text']:focus,
+.composer input[type='text']:focus-visible,
+.composer textarea:focus,
+.composer textarea:focus-visible {
+  outline: none;
 }
 
 .composer__text {
   position: relative;
   display: grid;
   gap: 0.55rem;
-  border: 1px solid #111111;
+  border: 2px solid var(--button-outline-color);
+  border-radius: var(--button-radius);
   background: #ffffff;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 1rem;
   cursor: text;
+  box-shadow: none;
+}
+
+.composer__text:focus-within {
+  outline: none;
 }
 
 .composer__text-path {
@@ -398,10 +535,16 @@ a {
 
 .composer__text textarea {
   border: 0;
+  border-radius: 0;
   padding: 0;
   min-block-size: 6.5rem;
   resize: vertical;
   box-shadow: none;
+}
+
+.composer__text textarea:focus,
+.composer__text textarea:focus-visible {
+  outline: none;
 }
 
 .composer__text-footer {
@@ -685,13 +828,6 @@ a {
     block-size: 2rem;
   }
 
-  .header-button,
-  .wallet-button {
-    min-block-size: 2.75rem;
-    padding: 0 0.85rem;
-    font-size: 0.75rem;
-  }
-
   .wallet-button {
     max-inline-size: min(9.5rem, 46vw);
   }
@@ -759,11 +895,6 @@ a {
 
   .app-header__actions {
     gap: 0.35rem;
-  }
-
-  .header-button,
-  .wallet-button {
-    padding: 0 0.7rem;
   }
 
   .wallet-button {
