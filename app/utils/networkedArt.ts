@@ -16,6 +16,9 @@ const TRANSIENT_PROXY_HOSTS = new Set([
   'ipfs.transientusercontent.xyz',
   'dae.transientusercontent.xyz',
 ])
+/** OpenSea converted thumbs (often square-cropped). Same path on raw2 is the file. */
+const SEADN_RESIZE_HOSTS = new Set(['i.seadn.io', 'i2.seadn.io', 'i2c.seadn.io'])
+const SEADN_ORIGINAL_HOST = 'raw2.seadn.io'
 
 /** URL/path with artist slug: sheipiter/0x…/2 */
 const ARTWORK_PATH_WITH_ARTIST_RE =
@@ -405,6 +408,72 @@ export function isGenericNetworkedOgImage(imageUrl: string): boolean {
   }
 }
 
+/**
+ * OpenSea's `i2c.seadn.io` (and siblings) serve converted, often square-cropped
+ * thumbs. `raw2.seadn.io` keeps the uploaded file's real aspect ratio.
+ */
+export function toOriginalArtworkImageUrl(imageUrl: string): string {
+  try {
+    const url = new URL(imageUrl)
+    const host = url.hostname.replace(/^www\./, '')
+    if (!SEADN_RESIZE_HOSTS.has(host)) {
+      return imageUrl
+    }
+    url.hostname = SEADN_ORIGINAL_HOST
+    url.search = ''
+    return url.toString()
+  } catch {
+    return imageUrl
+  }
+}
+
+export function isSvgArtworkImageUrl(imageUrl: string): boolean {
+  if (imageUrl.startsWith('data:image/svg')) {
+    return true
+  }
+  try {
+    const url = new URL(imageUrl)
+    return /\.svg$/i.test(url.pathname)
+  } catch {
+    return false
+  }
+}
+
+/** ViewBox / pixel width-height; ignores percentage sizes that collapse in <img>. */
+export function extractSvgIntrinsicSize(
+  svg: string,
+): { width: number; height: number } | null {
+  const viewBox = svg.match(
+    /viewBox\s*=\s*["']?\s*[-.\d]+\s+[-.\d]+\s+([.\d]+)\s+([.\d]+)/i,
+  )
+  if (viewBox?.[1] && viewBox[2]) {
+    const width = Number(viewBox[1])
+    const height = Number(viewBox[2])
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  const widthMatch = svg.match(/\bwidth\s*=\s*["']?(\d+(?:\.\d+)?)(?!\s*%)/i)
+  const heightMatch = svg.match(/\bheight\s*=\s*["']?(\d+(?:\.\d+)?)(?!\s*%)/i)
+  if (widthMatch?.[1] && heightMatch?.[1]) {
+    const width = Number(widthMatch[1])
+    const height = Number(heightMatch[1])
+    if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      return { width, height }
+    }
+  }
+
+  return null
+}
+
+/** OpenSea item JSON includes the uncropped file as originalImageUrl. */
+export function extractOpenSeaOriginalImageFromHtml(html: string): string | null {
+  const match = html.match(/"originalImageUrl":"(https:[^"]+)"/)
+  const raw = match?.[1]?.replace(/\\u0026/g, '&').replace(/\\\//g, '/')
+  return raw ? toOriginalArtworkImageUrl(decodeHtmlEntities(raw)) : null
+}
+
 /** OpenSea page OG tags point at a branded `/opengraph-image` card, not the NFT. */
 export function isGenericOpenSeaOgImage(imageUrl: string): boolean {
   try {
@@ -463,6 +532,11 @@ export function isGenericTransientTitle(title: string | null | undefined): boole
 
 /** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
 export function extractArtworkImageFromHtml(html: string): string | null {
+  const openSeaOriginal = extractOpenSeaOriginalImageFromHtml(html)
+  if (openSeaOriginal) {
+    return openSeaOriginal
+  }
+
   const transientCdns = html.match(
     /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/gi,
   )
@@ -538,7 +612,16 @@ export function isProxyableArtworkImageUrl(value: string): boolean {
       return false
     }
     const host = url.hostname.replace(/^www\./, '')
-    return TRANSIENT_PROXY_HOSTS.has(host)
+    if (TRANSIENT_PROXY_HOSTS.has(host)) {
+      return true
+    }
+    // OpenSea wraps on-chain SVGs with width/height 100%, which collapses in <img>.
+    return (
+      (host === SEADN_ORIGINAL_HOST ||
+        host === 'raw.seadn.io' ||
+        SEADN_RESIZE_HOSTS.has(host)) &&
+      /\.svg$/i.test(url.pathname)
+    )
   } catch {
     return false
   }
@@ -558,7 +641,7 @@ export function resolveArtworkImageFromHtml(html: string): string | null {
       !isGenericTransientOgImage(ogImage) &&
       !isGenericTransientOgImage(unwrapped)
     ) {
-      return unwrapped
+      return toOriginalArtworkImageUrl(unwrapped)
     }
   }
   return extractArtworkImageFromHtml(html)

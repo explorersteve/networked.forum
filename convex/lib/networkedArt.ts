@@ -11,6 +11,9 @@ const ARTBLOCKS_TOKEN_API_ORIGIN = `https://${ARTBLOCKS_TOKEN_HOST}`
 const TRANSIENT_HOST = 'transient.xyz'
 const TRANSIENT_ORIGIN = `https://www.${TRANSIENT_HOST}`
 const TRANSIENT_IMAGE_ORIGIN = 'https://img.transient.xyz'
+/** OpenSea converted thumbs (often square-cropped). Same path on raw2 is the file. */
+const SEADN_RESIZE_HOSTS = new Set(['i.seadn.io', 'i2.seadn.io', 'i2c.seadn.io'])
+const SEADN_ORIGINAL_HOST = 'raw2.seadn.io'
 
 /** URL/path with artist slug: sheipiter/0x…/2 */
 const ARTWORK_PATH_WITH_ARTIST_RE =
@@ -448,6 +451,32 @@ export function isGenericNetworkedOgImage(imageUrl: string): boolean {
   }
 }
 
+/**
+ * OpenSea's `i2c.seadn.io` (and siblings) serve converted, often square-cropped
+ * thumbs. `raw2.seadn.io` keeps the uploaded file's real aspect ratio.
+ */
+export function toOriginalArtworkImageUrl(imageUrl: string): string {
+  try {
+    const url = new URL(imageUrl)
+    const host = url.hostname.replace(/^www\./, '')
+    if (!SEADN_RESIZE_HOSTS.has(host)) {
+      return imageUrl
+    }
+    url.hostname = SEADN_ORIGINAL_HOST
+    url.search = ''
+    return url.toString()
+  } catch {
+    return imageUrl
+  }
+}
+
+/** OpenSea item JSON includes the uncropped file as originalImageUrl. */
+export function extractOpenSeaOriginalImageFromHtml(html: string): string | null {
+  const match = html.match(/"originalImageUrl":"(https:[^"]+)"/)
+  const raw = match?.[1]?.replace(/\\u0026/g, '&').replace(/\\\//g, '/')
+  return raw ? toOriginalArtworkImageUrl(decodeHtmlEntities(raw)) : null
+}
+
 /** OpenSea page OG tags point at a branded `/opengraph-image` card, not the NFT. */
 export function isGenericOpenSeaOgImage(imageUrl: string): boolean {
   try {
@@ -506,6 +535,11 @@ export function isGenericTransientTitle(title: string | null | undefined): boole
 
 /** Prefer the page's CDN/IPFS artwork when OG tags are the site default. */
 export function extractArtworkImageFromHtml(html: string): string | null {
+  const openSeaOriginal = extractOpenSeaOriginalImageFromHtml(html)
+  if (openSeaOriginal) {
+    return openSeaOriginal
+  }
+
   const transientCdns = html.match(
     /https:\/\/img\.transient\.xyz\/\?[^"'\s<>]+/gi,
   )
@@ -577,7 +611,7 @@ export function resolveArtworkImageFromHtml(html: string): string | null {
       !isGenericTransientOgImage(ogImage) &&
       !isGenericTransientOgImage(unwrapped)
     ) {
-      return unwrapped
+      return toOriginalArtworkImageUrl(unwrapped)
     }
   }
   return extractArtworkImageFromHtml(html)

@@ -14,11 +14,22 @@ const displayImage = computed(() =>
   props.image ? artworkDisplayUrl(props.image) : null,
 )
 
+const isSvg = computed(() => {
+  const src = props.image || ''
+  return (
+    src.startsWith('data:image/svg') ||
+    /\.svg(?:$|\?)/i.test(src)
+  )
+})
+
 const aspectStyle = computed(() => {
-  if (!props.width || !props.height) {
-    return undefined
+  if (props.width && props.height) {
+    return { aspectRatio: `${props.width} / ${props.height}` }
   }
-  return { aspectRatio: `${props.width} / ${props.height}` }
+  if (isSvg.value) {
+    return { aspectRatio: '1 / 1' }
+  }
+  return undefined
 })
 
 function onImageLoad(event: Event) {
@@ -46,9 +57,10 @@ function onImageLoad(event: Event) {
     <img
       :src="displayImage"
       :alt="title || 'Artwork preview'"
+      :class="{ 'artwork-preview__svg': isSvg }"
       :style="aspectStyle"
-      :width="width || undefined"
-      :height="height || undefined"
+      :width="width || (isSvg ? 1200 : undefined)"
+      :height="height || (isSvg ? 1200 : undefined)"
       referrerpolicy="no-referrer"
       loading="lazy"
       decoding="async"

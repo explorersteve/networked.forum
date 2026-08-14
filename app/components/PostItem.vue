@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { forumPostPath, forumPostUrl, xPostIntentUrl } from '~/utils/forum'
-import { stripArtworkPathFromText } from '~/utils/networkedArt'
+import {
+  stripArtworkPathFromText,
+  toOriginalArtworkImageUrl,
+} from '~/utils/networkedArt'
 import type { ForumPost } from '~/utils/forum'
 
 const props = defineProps<{
@@ -17,7 +20,10 @@ const displayText = computed(() => stripArtworkPathFromText(props.post.text))
 
 const artworkTitle = computed(() => props.post.title || null)
 const artworkArtist = computed(() => props.post.artist || null)
-const artworkImage = computed(() => props.post.imageUrl || preview.value?.image || null)
+const artworkImage = computed(() => {
+  const src = props.post.imageUrl || preview.value?.image || null
+  return src ? toOriginalArtworkImageUrl(src) : null
+})
 const artworkPending = computed(() => !props.post.imageUrl && pending.value)
 
 const postPath = computed(() => forumPostPath(props.post.txHash))

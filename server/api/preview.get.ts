@@ -18,6 +18,9 @@ import {
   parseDimensionString,
   resolveArtworkImageFromHtml,
   resolveArtworkTitleFromHtml,
+  toOriginalArtworkImageUrl,
+  isSvgArtworkImageUrl,
+  extractSvgIntrinsicSize,
 } from '~/utils/networkedArt'
 
 type PreviewResult = {
@@ -192,12 +195,52 @@ async function fetchOpenSeaPreview(url: string): Promise<{
       title: typeof metadata.name === 'string' ? metadata.name : null,
       image:
         typeof metadata.image === 'string' && metadata.image
-          ? resolveTokenUri(metadata.image)
+          ? toOriginalArtworkImageUrl(resolveTokenUri(metadata.image))
           : null,
     }
   } catch (error) {
     console.error('Failed to fetch OpenSea metadata', error)
     return { title: null, image: null }
+  }
+}
+
+async function fetchSvgDimensions(
+  imageUrl: string,
+): Promise<{ width: number; height: number } | null> {
+  try {
+    if (imageUrl.startsWith('data:image/svg+xml;base64,')) {
+      const svg = Buffer.from(
+        imageUrl.slice('data:image/svg+xml;base64,'.length),
+        'base64',
+      ).toString('utf8')
+      return extractSvgIntrinsicSize(svg)
+    }
+    if (imageUrl.startsWith('data:image/svg+xml,')) {
+      return extractSvgIntrinsicSize(
+        decodeURIComponent(imageUrl.slice('data:image/svg+xml,'.length)),
+      )
+    }
+    if (imageUrl.startsWith('data:image/svg+xml;utf8,')) {
+      return extractSvgIntrinsicSize(
+        decodeURIComponent(imageUrl.slice('data:image/svg+xml;utf8,'.length)),
+      )
+    }
+
+    const response = await fetch(imageUrl, {
+      headers: {
+        Accept: 'image/svg+xml,image/*,*/*;q=0.8',
+        'User-Agent': PREVIEW_UA,
+      },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) {
+      return null
+    }
+    const svg = await response.text()
+    return extractSvgIntrinsicSize(svg.slice(0, 8_000))
+  } catch (error) {
+    console.error('Failed to read SVG artwork size', error)
+    return null
   }
 }
 
@@ -299,9 +342,29 @@ async function proxyArtworkImage(event: Parameters<typeof getQuery>[0], src: str
       })
     }
 
+    const body = Buffer.from(await response.arrayBuffer())
+    if (contentType.toLowerCase().includes('svg')) {
+      const svg = body.toString('utf8')
+      const size = extractSvgIntrinsicSize(svg)
+      const rewritten = size
+        ? svg.replace(
+            /<svg\b([^>]*)>/i,
+            (_match, attrs: string) => {
+              const withoutSize = String(attrs)
+                .replace(/\swidth\s*=\s*["'][^"']*["']/i, '')
+                .replace(/\sheight\s*=\s*["'][^"']*["']/i, '')
+              return `<svg${withoutSize} width="${size.width}" height="${size.height}">`
+            },
+          )
+        : svg
+      setHeader(event, 'Content-Type', 'image/svg+xml')
+      setHeader(event, 'Cache-Control', 'public, max-age=86400, immutable')
+      return Buffer.from(rewritten, 'utf8')
+    }
+
     setHeader(event, 'Content-Type', contentType)
     setHeader(event, 'Cache-Control', 'public, max-age=86400, immutable')
-    return Buffer.from(await response.arrayBuffer())
+    return body
   } catch (error) {
     if (error && typeof error === 'object' && 'statusCode' in error) {
       throw error
@@ -384,24 +447,35 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Marketplace thumbs are often square crops. On-chain `image` +
-  // `media.dimensions` are the work's real frame — prefer those for OpenSea.
+  // Marketplace thumbs are often square crops. Prefer the original file,
+  // and only replace it with on-chain media when that media has a real frame.
   if (isOpenSeaArtworkUrl(url) || !title || !image) {
     const onchain = await fetchOnchainPreview(url)
     title = title || onchain.title
     if (isOpenSeaArtworkUrl(url)) {
-      image = onchain.image || image
+      if (onchain.image && onchain.width && onchain.height) {
+        image = onchain.image
+      } else {
+        image = image || onchain.image
+      }
+      image = image ? toOriginalArtworkImageUrl(image) : image
     } else {
       image = image || onchain.image
     }
-    width = onchain.width
-    height = onchain.height
+    width = onchain.width ?? width
+    height = onchain.height ?? height
   }
 
   if (isOpenSeaArtworkUrl(url) && (!title || !image)) {
     const opensea = await fetchOpenSeaPreview(url)
     title = title || opensea.title
     image = image || opensea.image
+  }
+
+  if (image && isSvgArtworkImageUrl(image) && (!width || !height)) {
+    const svgSize = await fetchSvgDimensions(image)
+    width = width ?? svgSize?.width ?? 1200
+    height = height ?? svgSize?.height ?? 1200
   }
 
   if (!image) {

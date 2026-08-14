@@ -28,6 +28,7 @@ import {
   parseArtworkTitle,
   resolveArtworkImageFromHtml,
   resolveArtworkTitleFromHtml,
+  toOriginalArtworkImageUrl,
 } from './lib/networkedArt'
 
 const payloadSetEvent = parseAbiItem(
@@ -137,7 +138,7 @@ async function fetchOpenSeaMetadata(url: string): Promise<{
       title: typeof metadata.name === 'string' ? metadata.name : '',
       imageUrl:
         typeof metadata.image === 'string' && metadata.image
-          ? resolveTokenUri(metadata.image)
+          ? toOriginalArtworkImageUrl(resolveTokenUri(metadata.image))
           : undefined,
     }
   } catch (error) {
@@ -451,7 +452,11 @@ export const enrichMetadata = internalAction({
     if (isOpenSeaArtworkUrl(args.url)) {
       const onchain = await fetchOnchainMetadata(args.url)
       title = title || onchain.title
-      imageUrl = onchain.imageUrl || imageUrl
+      if (onchain.imageUrl) {
+        imageUrl = toOriginalArtworkImageUrl(onchain.imageUrl)
+      } else if (imageUrl) {
+        imageUrl = toOriginalArtworkImageUrl(imageUrl)
+      }
       if (!title || !imageUrl) {
         const opensea = await fetchOpenSeaMetadata(args.url)
         title = title || opensea.title

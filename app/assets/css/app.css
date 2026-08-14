@@ -723,6 +723,13 @@ a.button[aria-disabled='true']:active,
   overflow: hidden;
 }
 
+/* Feed: full column width, don't clip landscape before intrinsic size is known. */
+.post__artwork .artwork-preview {
+  width: 100%;
+  max-block-size: none;
+  overflow: visible;
+}
+
 .artwork-preview img {
   display: block;
   width: auto;
@@ -731,6 +738,15 @@ a.button[aria-disabled='true']:active,
   height: auto;
   object-fit: contain;
   vertical-align: top;
+}
+
+.post__artwork .artwork-preview img {
+  max-block-size: min(70dvh, 28rem);
+}
+
+.artwork-preview__svg {
+  width: min(36rem, 100%);
+  height: auto;
 }
 
 .artwork-preview__empty,
@@ -856,6 +872,14 @@ a.button[aria-disabled='true']:active,
   .artwork-preview__empty,
   .artwork-preview__loading {
     max-block-size: min(50dvh, 20rem);
+  }
+
+  .post__artwork .artwork-preview {
+    max-block-size: none;
+  }
+
+  .post__artwork .artwork-preview img {
+    max-block-size: min(70dvh, 24rem);
   }
 
   .artwork-preview__empty,

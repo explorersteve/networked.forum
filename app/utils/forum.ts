@@ -7,7 +7,11 @@ import {
   type Address,
   type Hex,
 } from 'viem'
-import { buildNetworkedArtUrl, extractNetworkedArtPath } from '~/utils/networkedArt'
+import {
+  buildNetworkedArtUrl,
+  extractNetworkedArtPath,
+  toOriginalArtworkImageUrl,
+} from '~/utils/networkedArt'
 
 /** OpenVault — writes UTF-8 post payload bytes to the Vessel token. */
 export const openVaultAbi = parseAbi([
@@ -89,7 +93,9 @@ export function toForumPost(row: ConvexPostRow): ForumPost {
     block: String(row.blockNumber),
     title: row.title,
     artist: row.artist,
-    imageUrl: row.imageUrl,
+    imageUrl: row.imageUrl
+      ? toOriginalArtworkImageUrl(row.imageUrl)
+      : undefined,
   }
 }
 
