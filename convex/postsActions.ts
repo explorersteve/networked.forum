@@ -490,6 +490,7 @@ export const enrichMetadata = internalAction({
 export const syncFromChain = internalAction({
   args: {
     maxBlocks: v.optional(v.number()),
+    maxChunks: v.optional(v.number()),
   },
   returns: v.object({
     processed: v.number(),
@@ -505,55 +506,75 @@ export const syncFromChain = internalAction({
       1,
       Math.min(args.maxBlocks ?? config.logRange, config.logRange),
     )
+    // 80 × 9 blocks ≈ 2.4h of mainnet; leftover range is picked up next tick.
+    const maxChunks = Math.max(1, Math.min(args.maxChunks ?? 80, 200))
 
-    const cursor: number | null = await ctx.runQuery(
+    let cursor: number | null = await ctx.runQuery(
       internal.posts.getIndexerCursor,
       {},
     )
     const latest = await client.getBlockNumber()
-    const fromBlock = BigInt(
-      Math.max(cursor != null ? cursor + 1 : config.startBlock, config.startBlock),
-    )
-
-    if (fromBlock > latest) {
-      return { processed: 0, lastBlock: Number(latest) }
-    }
-
-    const spanEnd = fromBlock + BigInt(maxBlocks) - BigInt(1)
-    const toBlock = spanEnd < latest ? spanEnd : latest
-
-    const logs = await client.getLogs({
-      address: config.vesselAddress,
-      event: payloadSetEvent,
-      fromBlock,
-      toBlock,
-    })
-
-    // The Vessel is shared across many tokens; only OpenVault's token is ours.
-    const vaultTokenNum = await client.readContract({
-      address: config.contractAddress,
-      abi: openVaultAbi,
-      functionName: 'vaultTokenNum',
-    })
-
     let processed = 0
-    for (const log of logs) {
-      if (!log.transactionHash || log.args._tokenId !== vaultTokenNum) {
-        continue
+    let lastBlock = cursor ?? config.startBlock
+    let vaultTokenNum: bigint | null = null
+
+    for (let chunk = 0; chunk < maxChunks; chunk += 1) {
+      const fromBlock = BigInt(
+        Math.max(
+          cursor != null ? cursor + 1 : config.startBlock,
+          config.startBlock,
+        ),
+      )
+
+      if (fromBlock > latest) {
+        return { processed, lastBlock: Number(latest) }
       }
 
-      const result = await indexTransaction(ctx, {
-        txHash: log.transactionHash,
+      const spanEnd = fromBlock + BigInt(maxBlocks) - BigInt(1)
+      const toBlock = spanEnd < latest ? spanEnd : latest
+
+      const logs = await client.getLogs({
+        address: config.vesselAddress,
+        event: payloadSetEvent,
+        fromBlock,
+        toBlock,
       })
-      if (result.indexed) {
-        processed += 1
+
+      if (logs.length > 0) {
+        // The Vessel is shared across many tokens; only OpenVault's token is ours.
+        if (vaultTokenNum == null) {
+          vaultTokenNum = await client.readContract({
+            address: config.contractAddress,
+            abi: openVaultAbi,
+            functionName: 'vaultTokenNum',
+          })
+        }
+
+        for (const log of logs) {
+          if (!log.transactionHash || log.args._tokenId !== vaultTokenNum) {
+            continue
+          }
+
+          const result = await indexTransaction(ctx, {
+            txHash: log.transactionHash,
+          })
+          if (result.indexed) {
+            processed += 1
+          }
+        }
+      }
+
+      await ctx.runMutation(internal.posts.setIndexerCursor, {
+        lastBlock: Number(toBlock),
+      })
+      cursor = Number(toBlock)
+      lastBlock = Number(toBlock)
+
+      if (toBlock >= latest) {
+        break
       }
     }
 
-    await ctx.runMutation(internal.posts.setIndexerCursor, {
-      lastBlock: Number(toBlock),
-    })
-
-    return { processed, lastBlock: Number(toBlock) }
+    return { processed, lastBlock }
   },
 })
